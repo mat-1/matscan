@@ -59,12 +59,14 @@ impl Throttler {
         }
 
         if current_rate > self.max_rate {
-            // if we're scanning above the limit, then wait a bit, lower our batch size, and continue
+            // if we're scanning above the limit, then wait a bit, lower our batch size, and
+            // continue
             let mut sleep_time = Duration::from_secs_f64(
                 ((current_rate - self.max_rate) as f64 / self.max_rate as f64) / 10.,
             );
 
-            // if it's longer than 100ms then clamp (usually happens at the beginning of scans when the rate is overestimated)
+            // if it's longer than 100ms then clamp (usually happens at the beginning of
+            // scans when the rate is overestimated)
             if sleep_time > Duration::from_millis(100) {
                 sleep_time = Duration::from_millis(100);
             }

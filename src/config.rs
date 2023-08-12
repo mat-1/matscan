@@ -7,18 +7,21 @@ pub struct Config {
     pub rate: u64,
 
     /// The number of seconds to sleep after each scan. You can set this to 0
-    /// if you want, but it mostly helps avoid pings being associated to the wrong mode.
+    /// if you want, but it mostly helps avoid pings being associated to the
+    /// wrong mode.
     ///
     /// Defaults to 10 seconds.
     #[serde(default)]
     pub sleep_secs: Option<u64>,
 
-    /// If true, the program will exit after the first scan. This is primarily meant for for debugging purposes.
+    /// If true, the program will exit after the first scan. This is primarily
+    /// meant for for debugging purposes.
     #[serde(default)]
     pub exit_on_done: bool,
 
     /// The maximum amount of time each scan will take. Defaults to 5 minutes.
-    /// You should probably leave it as the default unless you're debugging something to do with switching modes.
+    /// You should probably leave it as the default unless you're debugging
+    /// something to do with switching modes.
     #[serde(default)]
     pub scan_duration_secs: Option<u64>,
 
@@ -38,12 +41,12 @@ pub struct Config {
     #[serde(default)]
     pub rescan5: RescanConfig,
 
-    /// Log to a Discord webhook if a player with a given username joins a server. This works best
-    /// if you're rescanning quickly and not distributed.
+    /// Log to a Discord webhook if a player with a given username joins a
+    /// server. This works best if you're rescanning quickly and not
+    /// distributed.
     #[serde(default)]
     pub snipe: SnipeConfig,
 
-    /// Send extra packets to determine information about the software the server is running.
     #[serde(default)]
     pub fingerprinting: FingerprintingConfig,
 }
@@ -96,5 +99,8 @@ pub struct SnipeConfig {
 pub struct FingerprintingConfig {
     /// Test quirks with the server's protocol implementation. This may cause
     /// errors to show up in the consoles of servers.
+    ///
+    /// If this is false then passive fingerprinting is still done but it won't
+    /// be able to gather as much information as active fingerprinting.
     pub enabled: bool,
 }

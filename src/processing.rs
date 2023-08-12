@@ -15,9 +15,11 @@ use crate::{config::Config, database::Database};
 
 pub struct SharedData {
     pub database: Database,
-    /// The queue of servers to process, along with their server list ping response.
+    /// The queue of servers to process, along with their server list ping
+    /// response.
     pub queue: VecDeque<(SocketAddrV4, Vec<u8>)>,
-    /// Data from the previous scan, used for identifying players that just joined or left a server.
+    /// Data from the previous scan, used for identifying players that just
+    /// joined or left a server.
     pub cached_servers: HashMap<SocketAddrV4, serde_json::Value>,
 
     pub total_new: usize,

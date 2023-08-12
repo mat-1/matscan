@@ -222,7 +222,8 @@ impl ScannerReceiver {
                     } else {
                         // this means it's the first data packet we got, verify it
                         let original_cookie = cookie(&address, self.scanner.seed);
-                        // we never send anything other than the SYN and initial ping so this is fine
+                        // we never send anything other than the SYN and initial ping so this is
+                        // fine
                         let packet_size = protocol.payload(address).len();
                         let cookie_offset = (packet_size + 1) as u32;
 
@@ -280,8 +281,9 @@ impl ScannerReceiver {
                                     }
 
                                     // always ack whatever they send
-                                    // a better tcp implementation would only ack every 2 packets or after .5 seconds
-                                    // but this technically still follows the spec
+                                    // a better tcp implementation would only ack every 2 packets or
+                                    // after .5 seconds but this
+                                    // technically still follows the spec
                                     self.scanner.client.write.send_ack(
                                         address,
                                         ack_number,
@@ -318,12 +320,14 @@ pub struct ScanSession {
     pub ranges: StaticScanRanges,
 }
 
-/// The state stored for active connections. We try to keep this existing for the shortest amount of time possible.
+/// The state stored for active connections. We try to keep this existing for
+/// the shortest amount of time possible.
 pub struct ConnState {
     /// The data we've received so far.
     data: Vec<u8>,
 
-    /// The (last received sequence number + payload length); aka the `ack_number` we send; aka the next expected starting sequence number.
+    /// The (last received sequence number + payload length); aka the
+    /// `ack_number` we send; aka the next expected starting sequence number.
     remote_seq: u32,
 
     /// The time that the connection was created. Connections are closed 30
@@ -344,7 +348,8 @@ impl ScanSession {
         }
     }
 
-    /// Run the scanner for `scan_duration_secs` and then sleep for `sleep_secs`.
+    /// Run the scanner for `scan_duration_secs` and then sleep for
+    /// `sleep_secs`.
     ///
     /// Returns the number of packets sent.
     pub fn run(

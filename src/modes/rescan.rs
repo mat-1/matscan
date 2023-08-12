@@ -98,7 +98,8 @@ pub async fn get_ranges(
                             None,
                         )
                         .await?;
-                    // this doesn't actually remove it from the bad_ips database, it just makes it so we don't delete twice
+                    // this doesn't actually remove it from the bad_ips database, it just makes it
+                    // so we don't delete twice
                     bad_ips.remove(&addr);
                     continue;
                 }

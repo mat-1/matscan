@@ -33,7 +33,8 @@ pub struct DatabaseSharedData {
 }
 
 pub struct CachedIpHash {
-    /// The number of IPs found with the same hash. None if we already found an IP with a different hash.
+    /// The number of IPs found with the same hash. None if we already found an
+    /// IP with a different hash.
     pub count: Option<usize>,
     pub hash: u64,
 }
@@ -137,7 +138,8 @@ impl Database {
             .expect("servers collection must exist");
 
         while let Some(Ok(doc)) = cursor.next().await {
-            // delete the players field and then add it again but with the 1000 most recent players
+            // delete the players field and then add it again but with the 1000 most recent
+            // players
             let update = doc! { "$unset": { "players": "" } };
             collection
                 .update_one(
@@ -147,9 +149,11 @@ impl Database {
                 )
                 .await
                 .expect("updating must not fail");
-            // it might not actually be necessary to do two updates here, i'm guessing it is though
+            // it might not actually be necessary to do two updates here, i'm guessing it is
+            // though
 
-            // players looks like `abcdundasheduuidefgh: { lastSeen: 2023-01-15T21:13:01.000Z, name: 'Herobrine' }`
+            // players looks like `abcdundasheduuidefgh: { lastSeen:
+            // 2023-01-15T21:13:01.000Z, name: 'Herobrine' }`
             let players = doc
                 .get_document("players")
                 .expect("players must be present");

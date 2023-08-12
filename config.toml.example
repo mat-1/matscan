@@ -1,4 +1,4 @@
-# see src/config.rs for all options
+# see src/config.rs for all options and descriptions
 
 mongodb_uri = 'mongodb://REPLACEME'
 
@@ -25,6 +25,9 @@ limit = 10_000
 [rescan2.filter]
 'minecraft.players.online' = { '$gte' = 1 }
 'minecraft.players.sample' = { '$exists' = true, '$ne' = [] }
+
+[fingerprinting]
+enabled = false
 
 [snipe]
 enabled = false

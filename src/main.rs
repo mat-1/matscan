@@ -22,6 +22,13 @@ use matscan::{
     },
 };
 
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum ModeCategory {
+    Normal,
+    Rescan,
+    Fingerprint,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     println!("Starting...");
@@ -50,7 +57,8 @@ async fn main() -> anyhow::Result<()> {
     let scanner = Scanner::new();
     let mut mode_picker = ModePicker::default();
 
-    // the number of times we've done a scan, used for switching between rescanning and scanning
+    // the number of times we've done a scan, used for switching between rescanning
+    // and scanning
     let mut i = 0;
 
     let rescan_enabled = config.rescan.enabled
@@ -81,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         panic!("Scanner, rescanner, and fingerprinting are all disabled in the config. You should probably at least enable scanner.");
     }
 
-    // the protocol set here will be overridden later so it doesn't actually matter
+    // the protocol set here will be overwritten later so it doesn't actually matter
     let protocol: Arc<RwLock<Box<dyn protocols::Protocol>>> =
         Arc::new(RwLock::new(Box::new(minecraft_protocol.clone())));
 
@@ -116,8 +124,9 @@ async fn main() -> anyhow::Result<()> {
         let mut ranges = ScanRanges::new();
 
         let mode_category = mode_categories[i % mode_categories.len()];
-        // if the mode is none then that means it's a special mode (either rescanning or fingerprinting)
-        let mode: Option<ScanMode>;
+        // if the mode is none then that means it's a special mode (either rescanning or
+        // fingerprinting)
+        let mut mode: Option<ScanMode> = None;
         match mode_category {
             ModeCategory::Normal => {
                 let chosen_mode = mode_picker.pick_mode();
@@ -141,13 +150,16 @@ async fn main() -> anyhow::Result<()> {
                 println!("chosen mode: rescanning");
 
                 // add the ranges we're rescanning
-                maybe_rescan_with_config(&database, &mut ranges, &config.rescan).await?;
-                maybe_rescan_with_config(&database, &mut ranges, &config.rescan2).await?;
-                maybe_rescan_with_config(&database, &mut ranges, &config.rescan3).await?;
-                maybe_rescan_with_config(&database, &mut ranges, &config.rescan4).await?;
-                maybe_rescan_with_config(&database, &mut ranges, &config.rescan5).await?;
+                for rescan_config in [
+                    &config.rescan,
+                    &config.rescan2,
+                    &config.rescan3,
+                    &config.rescan4,
+                    &config.rescan5,
+                ] {
+                    maybe_rescan_with_config(&database, &mut ranges, &rescan_config).await?;
+                }
 
-                mode = None;
                 *protocol.write() = Box::new(minecraft_protocol.clone());
                 spawn_process_tasks::<protocols::Minecraft>(
                     &mut process_tasks,
@@ -171,7 +183,6 @@ async fn main() -> anyhow::Result<()> {
                 }
                 ranges.extend(fingerprint_ranges);
 
-                mode = None;
                 *protocol.write() = Box::new(protocols::MinecraftFingerprinting::new(
                     fingerprint_protocol_versions,
                 ));
@@ -187,6 +198,8 @@ async fn main() -> anyhow::Result<()> {
             ranges.exclude(range);
         }
         for &ip in &database.shared.lock().bad_ips {
+            // we still scan port 25565 on bad ips (ips that have the same server on every
+            // port)
             let mut excluded_included = Vec::new();
             if ranges.exclude(&Ipv4Range::single(ip)) {
                 excluded_included.push(ScanRange::single(ip, 25565));
@@ -199,7 +212,8 @@ async fn main() -> anyhow::Result<()> {
         let target_count = ranges.count();
         println!("scanning {target_count} targets");
 
-        // this just spews out syn packets so it doesn't need to know what protocol we're using
+        // this just spews out syn packets so it doesn't need to know what protocol
+        // we're using
         let session = ScanSession::new(ranges);
         let mut scanner_writer = scanner_writer.clone();
         let scanner_thread = thread::spawn(move || {
@@ -257,6 +271,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Print the results of the scan, reset the counters, and update modes.json.
 fn process_results(
     shared_process_data: &mut SharedData,
     start_time: Instant,
@@ -315,6 +330,10 @@ async fn maybe_rescan_with_config(
     Ok(())
 }
 
+/// Make the tasks that will process the ping responses for inserting into the
+/// database.
+///
+/// This also aborts the old tasks.
 fn spawn_process_tasks<P: matscan::processing::ProcessableProtocol>(
     process_tasks: &mut Vec<tokio::task::JoinHandle<()>>,
     shared_process_data: Arc<Mutex<SharedData>>,
@@ -332,11 +351,4 @@ fn spawn_process_tasks<P: matscan::processing::ProcessableProtocol>(
             config.clone(),
         )));
     }
-}
-
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-enum ModeCategory {
-    Normal,
-    Rescan,
-    Fingerprint,
 }

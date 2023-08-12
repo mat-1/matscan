@@ -78,7 +78,8 @@ impl ScanRanges {
     }
 
     /// Add to the set of ranges. There is no push function because it'd be too
-    /// inefficient, you can call this with a single-item vec if you really need to.
+    /// inefficient, you can call this with a single-item vec if you really need
+    /// to.
     pub fn extend(&mut self, ranges: Vec<ScanRange>) {
         self.ranges.extend(ranges);
         self.ranges.sort_by_key(|r| r.addr_start);
@@ -125,7 +126,8 @@ impl ScanRanges {
             {
                 // Cut off start.
 
-                // changing addr_start would change the position, so it's easier to just delete it and add it later
+                // changing addr_start would change the position, so it's easier to just delete
+                // it and add it later
                 let range = self.ranges.remove(i);
                 queued_push.push(ScanRange {
                     addr_start: Ipv4Addr::from(u32::from(exclude_range.end) + 1),
@@ -142,8 +144,8 @@ impl ScanRanges {
         self.extend(queued_push);
         if self.count() == 0 {
             println!("uh oh count is 0 after {:?}", exclude_range);
-            // *usually* this means there's a problem but sometimes it does legitimately happen with the rescanner
-            // panic!();
+            // *usually* this means there's a problem but sometimes it does
+            // legitimately happen with the rescanner panic!();
         }
 
         removed_any

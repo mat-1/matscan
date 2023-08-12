@@ -66,7 +66,8 @@ pub fn build_latest_request(hostname: &str, port: u16, protocol_version: i32) ->
 
     write_varint(&mut buffer, protocol_version); // protocol version
 
-    // Some server implementations require hostname and port to be properly set (Notchian does not)
+    // Some server implementations require hostname and port to be properly set
+    // (Notchian does not)
     write_varint(&mut buffer, hostname.len() as i32); // length of hostname as VarInt
     buffer.extend_from_slice(hostname.as_bytes());
     buffer.extend_from_slice(&[

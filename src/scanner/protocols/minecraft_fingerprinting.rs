@@ -28,7 +28,8 @@ impl Protocol for MinecraftFingerprinting {
     }
 }
 
-/// Create a request that will cause servers to respond with an error (which we can then use to identify the server software).
+/// Create a request that will cause servers to respond with an error (which we
+/// can then use to identify the server software).
 pub fn build_fingerprint_request(hostname: &str, port: u16, protocol_version: i32) -> Vec<u8> {
     // buffer for the 1st packet's data part
     let mut buffer = vec![
@@ -38,7 +39,8 @@ pub fn build_fingerprint_request(hostname: &str, port: u16, protocol_version: i3
 
     write_varint(&mut buffer, protocol_version); // protocol version
 
-    // Some server implementations require hostname and port to be properly set (Notchian does not)
+    // Some server implementations require hostname and port to be properly set
+    // (Notchian does not)
     write_varint(&mut buffer, hostname.len() as i32); // length of hostname as VarInt
     buffer.extend_from_slice(hostname.as_bytes());
     buffer.extend_from_slice(&[

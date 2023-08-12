@@ -11,7 +11,8 @@ use crate::{
     scanner::targets::ScanRange,
 };
 
-/// Scan ranges where servers tend to appear and disappear frequently (like Ngrok ranges).
+/// Scan ranges where servers tend to appear and disappear frequently (like
+/// Ngrok ranges).
 pub async fn get_ranges(database: &Database) -> anyhow::Result<Vec<ScanRange>> {
     println!("collecting servers");
     let known_servers =

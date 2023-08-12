@@ -143,7 +143,8 @@ impl ProcessableProtocol for protocols::Minecraft {
 
 /// we just pinged a server! clean it up and insert it into the database now
 ///
-/// Returns whether the document was inserted/revived/updated, and the parsed json.
+/// Returns whether the document was inserted/revived/updated, and the parsed
+/// json.
 pub async fn handle_ping(
     database: &Database,
     target: &SocketAddrV4,
@@ -171,7 +172,8 @@ pub async fn handle_ping(
     }
 }
 
-/// Clean up the response data from the server into something we can insert into our database.
+/// Clean up the response data from the server into something we can insert into
+/// our database.
 fn clean_response_data(
     data: &serde_json::Value,
     passive_minecraft_fingerprint: Option<PassiveMinecraftFingerprint>,
@@ -496,7 +498,8 @@ pub fn generate_passive_fingerprint(data: &str) -> anyhow::Result<PassiveMinecra
     let mut field_order = None;
     let mut empty_sample = false;
 
-    // the correct field order is description, players, version (ignore everything else)
+    // the correct field order is description, players, version (ignore everything
+    // else)
 
     if let Some(data) = data.as_object() {
         // mojang changed the order in 23w07a/1.19.4
