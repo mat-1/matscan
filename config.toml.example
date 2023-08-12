@@ -1,0 +1,32 @@
+# see src/config.rs for all options
+
+mongodb_uri = 'mongodb://REPLACEME'
+
+# packets per second
+rate = 100_000
+sleep_secs = 10
+
+[target]
+addr = "matscan"
+port = 1337
+protocol_version = 47
+
+[scanner]
+enabled = true
+
+[rescan]
+enabled = true
+rescan_every_secs = 3600
+
+[rescan2]
+enabled = false
+rescan_every_secs = 600
+limit = 10_000
+[rescan2.filter]
+'minecraft.players.online' = { '$gte' = 1 }
+'minecraft.players.sample' = { '$exists' = true, '$ne' = [] }
+
+[snipe]
+enabled = false
+webhook_url = 'https://discord.com/api/webhooks/REPLACEME'
+usernames = []

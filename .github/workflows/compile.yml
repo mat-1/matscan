@@ -1,0 +1,60 @@
+# basically stolen from https://github.com/spikecodes/libreddit/blob/master/.github/workflows/rust.yml
+
+name: CI
+
+on:
+  push:
+    paths-ignore:
+      - "**.md"
+    branches:
+      - master
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Use Rust nightly
+        run: rustup default nightly
+
+      - name: Cache Packages
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release
+
+      - uses: actions/upload-artifact@v2
+        name: Upload a Build Artifact
+        with:
+          name: matscan
+          path: target/release/matscan
+
+      - name: Versions
+        id: version
+        run: |
+          echo "::set-output name=version::$(cargo metadata --format-version 1 --no-deps | jq .packages[0].version -r | sed 's/^/v/')"
+          echo "::set-output name=tag::$(git describe --tags)"
+
+      - name: Calculate SHA512 checksum
+        run: sha512sum target/release/matscan > matscan.sha512
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: github.base_ref != 'master'
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }} - NAME
+          draft: true
+          files: |
+            target/release/matscan
+            matscan.sha512
+          body: |
+            - ${{ github.event.head_commit.message }} ${{ github.sha }}

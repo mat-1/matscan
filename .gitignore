@@ -1,0 +1,15 @@
+/target
+/out.txt
+/config.toml
+.env
+
+modes.json
+servers.txt
+
+# profiling
+perf.data
+perf.data.old
+flamegraph.svg
+heaptrack.*
+
+deploy.sh
