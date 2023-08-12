@@ -64,5 +64,6 @@ where
         }
 
         shared.lock().processing_count -= 1;
+        println!("processing count is now {}", shared.lock().processing_count);
     }
 }

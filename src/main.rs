@@ -41,11 +41,18 @@ async fn main() -> anyhow::Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
+    // first command line argument is the location of the config file
+    let config_file = std::env::args().nth(1).unwrap_or("config.toml".to_string());
+
+    let config_file_path = std::path::Path::new(&config_file).canonicalize()?;
+    println!(
+        "parsing config at {}",
+        config_file_path.as_os_str().to_string_lossy()
+    );
+    let config: Config = toml::from_str(&std::fs::read_to_string(config_file_path)?)?;
+
     println!("parsing exclude file");
     let exclude_ranges = exclude::parse_file("exclude.conf")?;
-
-    println!("parsing config");
-    let config: Config = toml::from_str(&std::fs::read_to_string("config.toml")?)?;
 
     let minecraft_protocol = protocols::Minecraft::new(
         &config.target.addr,
@@ -344,11 +351,9 @@ fn spawn_process_tasks<P: matscan::processing::ProcessableProtocol>(
         task.abort();
     }
 
-    for _ in 0..500 {
-        let shared_process_data = shared_process_data.clone();
-        process_tasks.push(tokio::task::spawn(process_pings::<P>(
-            shared_process_data,
-            config.clone(),
-        )));
-    }
+    let shared_process_data = shared_process_data.clone();
+    process_tasks.push(tokio::task::spawn(process_pings::<P>(
+        shared_process_data,
+        config.clone(),
+    )));
 }

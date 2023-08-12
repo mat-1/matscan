@@ -209,12 +209,12 @@ impl ScannerReceiver {
                             warn!("Got wrong seq number {ack_number}! expected {}. This is probably because of a re-transmission.", conn.remote_seq);
 
                             // ack anyways lol, maybe they missed a packet we sent
-                            self.scanner.client.write.send_ack(
-                                address,
-                                tcp.destination,
-                                ack_number,
-                                tcp.sequence.wrapping_add(tcp.payload.len() as u32),
-                            );
+                            // self.scanner.client.write.send_ack(
+                            //     address,
+                            //     tcp.destination,
+                            //     ack_number,
+                            //     tcp.sequence.wrapping_add(tcp.payload.len() as u32),
+                            // );
 
                             continue;
                         }
