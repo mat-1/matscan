@@ -1,10 +1,12 @@
 /target
-/out.txt
-/config.toml
+
+config.toml
+*-config.toml
 .env
 
 modes.json
 servers.txt
+out.txt
 
 # profiling
 perf.data

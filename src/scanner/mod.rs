@@ -118,7 +118,6 @@ impl ScannerReceiver {
                     continue;
                 } else if tcp.flags & TcpFlags::FIN != 0 {
                     // FIN
-                    debug!("FIN :( {}:{}", ipv4.source, tcp.source);
                     self.scanner.client.write.send_ack(
                         address,
                         tcp.destination,
@@ -128,6 +127,7 @@ impl ScannerReceiver {
 
                     if let Some(conn) = self.scanner.conns.get(&address) {
                         if conn.data.is_empty() {
+                            debug!("FIN with no data :( {}:{}", ipv4.source, tcp.source);
                             // if there was no data then parse that as a response
                             if let Ok(data) = protocol.parse_response(Response::Data(vec![])) {
                                 self.shared_process_data
@@ -135,7 +135,14 @@ impl ScannerReceiver {
                                     .queue
                                     .push_back((address, data));
                             }
+                        } else {
+                            debug!("FIN {}:{}", ipv4.source, tcp.source);
                         }
+                    } else {
+                        debug!(
+                            "FIN with no connection, probably already forgotten by us {}:{}",
+                            ipv4.source, tcp.source
+                        );
                     }
 
                     continue;
@@ -261,6 +268,11 @@ impl ScannerReceiver {
                                 tcp.sequence.wrapping_add(tcp.payload.len() as u32),
                             );
                             self.scanner.conns.borrow_mut().remove(&address);
+
+                            if !is_tracked {
+                                connections_started += 1;
+                                debug!("connection #{connections_started} started and ended immediately");
+                            }
                         }
                         Err(e) => {
                             match e {
@@ -290,8 +302,7 @@ impl ScannerReceiver {
 
                                     // always ack whatever they send
                                     // a better tcp implementation would only ack every 2 packets or
-                                    // after .5 seconds but this
-                                    // technically still follows the spec
+                                    // after .5 seconds but this technically still follows the spec
                                     self.scanner.client.write.send_ack(
                                         address,
                                         tcp.destination,
