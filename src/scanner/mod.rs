@@ -126,8 +126,8 @@ impl ScannerReceiver {
 
                     if let Some(conn) = self.scanner.conns.get(&address) {
                         if conn.data.is_empty() {
-                            // the fin might have significance for this protocol
-                            if let Ok(data) = protocol.parse_response(Response::Fin) {
+                            // if there was no data then parse that as a response
+                            if let Ok(data) = protocol.parse_response(Response::Data(vec![])) {
                                 self.shared_process_data
                                     .lock()
                                     .queue

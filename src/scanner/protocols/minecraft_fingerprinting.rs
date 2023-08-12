@@ -24,7 +24,6 @@ impl Protocol for MinecraftFingerprinting {
         Ok(match response {
             Response::Data(r) => r.to_owned(),
             Response::Rst => return Err(ParseResponseError::Invalid),
-            Response::Fin => vec![],
         })
     }
 }

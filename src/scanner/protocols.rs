@@ -15,7 +15,6 @@ pub enum ParseResponseError {
 pub enum Response {
     Data(Vec<u8>),
     Rst,
-    Fin,
 }
 
 pub trait Protocol: Send + Sync {

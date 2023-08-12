@@ -25,7 +25,7 @@ impl Protocol for Minecraft {
     fn parse_response(&self, response: Response) -> Result<Vec<u8>, ParseResponseError> {
         let response = match response {
             Response::Data(r) => r,
-            Response::Rst | Response::Fin => return Err(ParseResponseError::Invalid),
+            Response::Rst => return Err(ParseResponseError::Invalid),
         };
 
         // ignore the packet length
