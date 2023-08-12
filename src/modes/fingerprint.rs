@@ -38,7 +38,7 @@ pub async fn get_addrs_and_protocol_versions(
     pipeline.push(
         doc! { "$project": { "addr": 1, "port": 1, "minecraft.version.protocol": 1, "_id": 0 } },
     );
-    // pipeline.push(doc! { "$sort": { "timestamp": 1 } });
+    pipeline.push(doc! { "$sort": { "timestamp": 1 } });
 
     let mut cursor = database
         .servers_coll()

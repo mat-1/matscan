@@ -157,7 +157,7 @@ async fn main() -> anyhow::Result<()> {
                     &config.rescan4,
                     &config.rescan5,
                 ] {
-                    maybe_rescan_with_config(&database, &mut ranges, &rescan_config).await?;
+                    maybe_rescan_with_config(&database, &mut ranges, rescan_config).await?;
                 }
 
                 *protocol.write() = Box::new(minecraft_protocol.clone());
