@@ -49,20 +49,20 @@ impl ProcessableProtocol for protocols::Minecraft {
                 let shared = shared.lock();
                 let cached_data = shared.cached_servers.get(&target);
                 // Usernames of players that were on the server last time we pinged it
-                if let Some(data) = cached_data {
-                    if let Some(data) = data.as_object() {
-                        if let Some(players) = data.get("players").and_then(|s| s.as_object()) {
-                            if let Some(sample) = players.get("sample").and_then(|s| s.as_array()) {
-                                for player in sample {
-                                    if let Some(player) = player.as_object() {
-                                        let username = player
-                                            .get("name")
-                                            .and_then(|s| s.as_str())
-                                            .unwrap_or_default();
-                                        previous_player_usernames.push(username.to_string());
-                                    }
-                                }
-                            }
+                if let Some(sample) = cached_data
+                    .and_then(|s| s.as_object())
+                    .and_then(|s| s.get("players"))
+                    .and_then(|s| s.as_object())
+                    .and_then(|s| s.get("sample"))
+                    .and_then(|s| s.as_array())
+                {
+                    for player in sample {
+                        if let Some(player) = player.as_object() {
+                            let username = player
+                                .get("name")
+                                .and_then(|s| s.as_str())
+                                .unwrap_or_default();
+                            previous_player_usernames.push(username.to_string());
                         }
                     }
                 }
@@ -70,19 +70,21 @@ impl ProcessableProtocol for protocols::Minecraft {
 
             let mut current_player_usernames = Vec::new();
 
-            if let Some(data) = data.as_object() {
-                if let Some(players) = data.get("players").and_then(|s| s.as_object()) {
-                    if let Some(sample) = players.get("sample").and_then(|s| s.as_array()) {
-                        for player in sample {
-                            if let Some(player) = player.as_object() {
-                                let username = player
-                                    .get("name")
-                                    .and_then(|s| s.as_str())
-                                    .unwrap_or_default();
+            if let Some(sample) = data
+                .as_object()
+                .and_then(|s| s.get("players"))
+                .and_then(|s| s.as_object())
+                .and_then(|s| s.get("sample"))
+                .and_then(|s| s.as_array())
+            {
+                for player in sample {
+                    if let Some(player) = player.as_object() {
+                        let username = player
+                            .get("name")
+                            .and_then(|s| s.as_str())
+                            .unwrap_or_default();
 
-                                current_player_usernames.push(username.to_string());
-                            }
-                        }
+                        current_player_usernames.push(username.to_string());
                     }
                 }
             }
