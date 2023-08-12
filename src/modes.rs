@@ -171,7 +171,7 @@ impl ScanMode {
                     60 * 60 * 2,
                     None,
                     60 * 60 * 24,
-                    None,
+                    Some(250_000),
                     Some(Sort::Oldest),
                 )
                 .await
