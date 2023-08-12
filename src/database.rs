@@ -152,8 +152,10 @@ impl Database {
             // it might not actually be necessary to do two updates here, i'm guessing it is
             // though
 
-            // players looks like `abcdundasheduuidefgh: { lastSeen:
-            // 2023-01-15T21:13:01.000Z, name: 'Herobrine' }`
+            // players looks like
+            // ```
+            // abcdundasheduuidefgh: { lastSeen: 2023-01-15T21:13:01.000Z, name: 'Herobrine' }
+            // ```
             let players = doc
                 .get_document("players")
                 .expect("players must be present");

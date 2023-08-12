@@ -109,9 +109,10 @@ impl TemplatePacket {
         // mutable_ipv4_packet.set_destination(ipv4_packet.destination);
         mutable_ipv4_packet.set_options(&[]);
 
-        // mutable_ipv4_packet.set_total_length((IPV4_HEADER_LEN + tcp_header_len) as
-        // u16); mutable_ipv4_packet.set_checksum(ipv4::checksum(&
-        // mutable_ipv4_packet.to_immutable()));
+        // ```
+        // mutable_ipv4_packet.set_total_length((IPV4_HEADER_LEN + tcp_header_len) as u16);
+        // mutable_ipv4_packet.set_checksum(ipv4::checksum(&mutable_ipv4_packet.to_immutable()));
+        // ```
 
         if eth_header_len > 0 {
             // Ethernet

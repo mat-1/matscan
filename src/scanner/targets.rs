@@ -145,7 +145,7 @@ impl ScanRanges {
         if self.count() == 0 {
             println!("uh oh count is 0 after {:?}", exclude_range);
             // *usually* this means there's a problem but sometimes it does
-            // legitimately happen with the rescanner panic!();
+            // legitimately happen with the rescanner
         }
 
         removed_any
