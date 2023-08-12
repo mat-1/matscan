@@ -18,6 +18,7 @@ use std::{
 use parking_lot::{Mutex, RwLock};
 use perfect_rand::PerfectRng;
 use pnet::packet::tcp::TcpFlags;
+use serde::Deserialize;
 use tracing::{debug, trace, warn};
 
 use crate::{
@@ -43,7 +44,7 @@ pub struct ActiveFingerprintingData {
 }
 
 impl Scanner {
-    pub fn new(source_port: u16) -> Self {
+    pub fn new(source_port: SourcePort) -> Self {
         let seed = rand::random::<u64>();
 
         let mut client = StatelessTcp::new(source_port);
@@ -120,6 +121,7 @@ impl ScannerReceiver {
                     debug!("FIN :( {}:{}", ipv4.source, tcp.source);
                     self.scanner.client.write.send_ack(
                         address,
+                        tcp.destination,
                         tcp.acknowledgement,
                         tcp.sequence + 1,
                     );
@@ -155,6 +157,7 @@ impl ScannerReceiver {
 
                     self.scanner.client.write.send_ack(
                         address,
+                        tcp.destination,
                         tcp.acknowledgement,
                         tcp.sequence + 1,
                     );
@@ -164,6 +167,7 @@ impl ScannerReceiver {
                         // this means we're skipping this server, give them an rst
                         self.scanner.client.write.send_rst(
                             address,
+                            tcp.destination,
                             tcp.acknowledgement,
                             tcp.sequence + 1,
                         );
@@ -171,6 +175,7 @@ impl ScannerReceiver {
                     }
                     self.scanner.client.write.send_data(
                         address,
+                        tcp.destination,
                         tcp.acknowledgement,
                         tcp.sequence + 1,
                         &payload,
@@ -206,6 +211,7 @@ impl ScannerReceiver {
                             // ack anyways lol, maybe they missed a packet we sent
                             self.scanner.client.write.send_ack(
                                 address,
+                                tcp.destination,
                                 ack_number,
                                 tcp.sequence.wrapping_add(tcp.payload.len() as u32),
                             );
@@ -250,6 +256,7 @@ impl ScannerReceiver {
 
                             self.scanner.client.write.send_fin(
                                 address,
+                                tcp.destination,
                                 ack_number,
                                 tcp.sequence.wrapping_add(tcp.payload.len() as u32),
                             );
@@ -261,6 +268,7 @@ impl ScannerReceiver {
                                     trace!("packet error, sending fin");
                                     self.scanner.client.write.send_fin(
                                         address,
+                                        tcp.destination,
                                         ack_number,
                                         tcp.sequence.wrapping_add(tcp.payload.len() as u32),
                                     );
@@ -286,6 +294,7 @@ impl ScannerReceiver {
                                     // technically still follows the spec
                                     self.scanner.client.write.send_ack(
                                         address,
+                                        tcp.destination,
                                         ack_number,
                                         tcp.sequence.wrapping_add(tcp.payload.len() as u32),
                                     );
@@ -430,4 +439,40 @@ fn cookie(address: &SocketAddrV4, seed: u64) -> u32 {
     let mut hasher = DefaultHasher::new();
     (*address.ip(), address.port(), seed).hash(&mut hasher);
     hasher.finish() as u32
+}
+
+#[derive(Deserialize, Clone, Copy)]
+#[serde(untagged)]
+pub enum SourcePort {
+    Number(u16),
+    Range { min: u16, max: u16 },
+}
+
+impl SourcePort {
+    /// Pick a source port based on the given seed.
+    ///
+    /// If the source port is a range, then the port is chosen uniformly from
+    /// the range. Otherwise, the port is the given number.
+    pub fn pick(&self, seed: u32) -> u16 {
+        match self {
+            SourcePort::Number(port) => *port,
+            SourcePort::Range { min, max } => {
+                let range = max - min;
+                (seed % range as u32) as u16 + min
+            }
+        }
+    }
+
+    pub fn contains(&self, port: u16) -> bool {
+        match self {
+            SourcePort::Number(p) => *p == port,
+            SourcePort::Range { min, max } => *min <= port && port <= *max,
+        }
+    }
+}
+
+impl Default for SourcePort {
+    fn default() -> Self {
+        SourcePort::Number(61000)
+    }
 }

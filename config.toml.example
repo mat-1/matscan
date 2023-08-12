@@ -6,6 +6,10 @@ mongodb_uri = 'mongodb://REPLACEME'
 rate = 100_000
 sleep_secs = 10
 
+# if you want to use more source ports then uncomment this:
+# source_port = { min = 61000, max = 65535 }
+# and run `iptables -A INPUT -p tcp --dport 61000:65535 -j DROP`
+
 [target]
 addr = "matscan"
 port = 1337

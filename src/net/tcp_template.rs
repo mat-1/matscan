@@ -38,13 +38,13 @@ pub struct TemplatePacketRepr {
     pub gateway_mac: Option<MacAddr>,
     pub interface_mac: Option<MacAddr>,
     pub source_addr: Ipv4Addr,
-    pub source_port: u16,
 }
 
 /// Parts of a packet that will be different for every packet
 pub struct PacketRepr<'a> {
     pub dest_addr: Ipv4Addr,
     pub dest_port: u16,
+    pub source_port: u16,
     pub sequence: u32,
     pub acknowledgement: u32,
     pub payload: &'a [u8],
@@ -70,7 +70,7 @@ impl TemplatePacket {
         // TCP
         let mut mutable_tcp_packet =
             MutableTcpPacket::new(&mut packet[eth_header_len + IPV4_HEADER_LEN..]).unwrap();
-        mutable_tcp_packet.set_source(repr.source_port);
+        // mutable_tcp_packet.set_source(repr.source_port);
         // mutable_tcp_packet.set_destination(repr.dest_port);
         // mutable_tcp_packet.set_sequence(repr.sequence);
         // mutable_tcp_packet.set_acknowledgement(repr.acknowledgement);
@@ -153,6 +153,7 @@ impl TemplatePacket {
         let mut mutable_tcp_packet =
             MutableTcpPacket::new(&mut self.packet[self.eth_header_len + IPV4_HEADER_LEN..])
                 .unwrap();
+        mutable_tcp_packet.set_source(repr.source_port);
         mutable_tcp_packet.set_destination(repr.dest_port);
         mutable_tcp_packet.set_sequence(repr.sequence);
         mutable_tcp_packet.set_acknowledgement(repr.acknowledgement);

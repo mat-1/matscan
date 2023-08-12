@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use crate::scanner::SourcePort;
+
 #[derive(Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -21,8 +23,10 @@ pub struct Config {
 
     /// The port that we send packets from. You **must** firewall it, otherwise
     /// your OS will drop connections immediately.
+    ///
+    /// This can be either a number like 61000 or a range like "61000-65535"
     #[serde(default)]
-    pub source_port: Option<u16>,
+    pub source_port: SourcePort,
 
     /// The maximum amount of time each scan will take. Defaults to 5 minutes.
     /// You should probably leave it as the default unless you're debugging

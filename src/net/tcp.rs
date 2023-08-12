@@ -17,7 +17,7 @@ use pnet::{
 };
 use tracing::warn;
 
-use crate::net::tcp_template::TemplatePacketRepr;
+use crate::{net::tcp_template::TemplatePacketRepr, scanner::SourcePort};
 
 use super::{
     raw_sockets::RawSocket,
@@ -73,7 +73,8 @@ pub struct StatelessTcp {
 
 #[derive(Clone)]
 pub struct StatelessTcpWriteHalf {
-    source_addr: SocketAddrV4,
+    source_ip: Ipv4Addr,
+    source_port: SourcePort,
 
     gateway_mac: Option<MacAddr>,
     interface_mac: Option<MacAddr>,
@@ -90,7 +91,7 @@ pub struct StatelessTcpWriteHalf {
 
 pub struct StatelessTcpReadHalf {
     interface_mac: Option<MacAddr>,
-    source_port: u16,
+    source_port: SourcePort,
 
     // tx: Box<dyn DataLinkSender>,
     #[cfg(not(feature = "benchmark"))]
@@ -102,7 +103,7 @@ impl StatelessTcp {
     ///
     /// For the source port I usually do 61000 and then firewall it with
     /// `iptables -A INPUT -p tcp --dport 61000 -j DROP`
-    pub fn new(source_port: u16) -> Self {
+    pub fn new(source_port: SourcePort) -> Self {
         let interface = get_interface();
         println!("interface: {:?}", interface);
 
@@ -150,7 +151,8 @@ impl StatelessTcp {
         let fingerprint = Fingerprint::default();
 
         let write_half = StatelessTcpWriteHalf {
-            source_addr: SocketAddrV4::new(interface_ipv4, source_port),
+            source_ip: interface_ipv4,
+            source_port,
 
             gateway_mac,
             interface_mac,
@@ -172,7 +174,6 @@ impl StatelessTcp {
                 gateway_mac,
                 interface_mac,
                 source_addr: interface_ipv4,
-                source_port,
             }),
 
             fingerprint,
@@ -205,13 +206,20 @@ impl StatelessTcpWriteHalf {
             sequence,
             acknowledgement: 0,
             payload: &[],
+            source_port: self.source_port.pick(sequence),
         });
 
         #[cfg(not(feature = "benchmark"))]
         self.socket.send_blocking(packet);
     }
 
-    pub fn send_ack(&mut self, addr: SocketAddrV4, sequence: u32, acknowledgement: u32) {
+    pub fn send_ack(
+        &mut self,
+        addr: SocketAddrV4,
+        source_port: u16,
+        sequence: u32,
+        acknowledgement: u32,
+    ) {
         self.send_tcp(PacketRepr {
             dest_addr: *addr.ip(),
             dest_port: addr.port(),
@@ -222,13 +230,21 @@ impl StatelessTcpWriteHalf {
             urgent_ptr: 0,
             options: &[TcpOption::nop(), TcpOption::nop(), TcpOption::sack_perm()],
             payload: &[],
+            source_port,
         });
     }
 
-    pub fn send_rst(&mut self, addr: SocketAddrV4, sequence: u32, acknowledgement: u32) {
+    pub fn send_rst(
+        &mut self,
+        addr: SocketAddrV4,
+        source_port: u16,
+        sequence: u32,
+        acknowledgement: u32,
+    ) {
         self.send_tcp(PacketRepr {
             dest_addr: *addr.ip(),
             dest_port: addr.port(),
+            source_port,
             sequence,
             acknowledgement,
             flags: TcpFlags::RST | TcpFlags::ACK,
@@ -239,10 +255,17 @@ impl StatelessTcpWriteHalf {
         });
     }
 
-    pub fn send_fin(&mut self, addr: SocketAddrV4, sequence: u32, acknowledgement: u32) {
+    pub fn send_fin(
+        &mut self,
+        addr: SocketAddrV4,
+        source_port: u16,
+        sequence: u32,
+        acknowledgement: u32,
+    ) {
         self.send_tcp(PacketRepr {
             dest_addr: *addr.ip(),
             dest_port: addr.port(),
+            source_port,
             sequence,
             acknowledgement,
             flags: TcpFlags::FIN | TcpFlags::ACK,
@@ -256,6 +279,7 @@ impl StatelessTcpWriteHalf {
     pub fn send_data(
         &mut self,
         addr: SocketAddrV4,
+        source_port: u16,
         sequence: u32,
         acknowledgement: u32,
         payload: &[u8],
@@ -263,6 +287,7 @@ impl StatelessTcpWriteHalf {
         self.send_tcp(PacketRepr {
             dest_addr: *addr.ip(),
             dest_port: addr.port(),
+            source_port,
             sequence,
             acknowledgement,
             flags: TcpFlags::PSH | TcpFlags::ACK,
@@ -274,7 +299,8 @@ impl StatelessTcpWriteHalf {
     }
 
     pub fn send_tcp(&mut self, repr: PacketRepr) {
-        let packet = build_tcp_packet(repr, self.gateway_mac, self.interface_mac, self.source_addr);
+        let source_addr = SocketAddrV4::new(self.source_ip, repr.source_port);
+        let packet = build_tcp_packet(repr, self.gateway_mac, self.interface_mac, source_addr);
         #[cfg(not(feature = "benchmark"))]
         self.socket.send_blocking(&packet);
     }
@@ -294,12 +320,12 @@ fn build_tcp_packet(
         gateway_mac,
         interface_mac,
         source_addr: *source_addr.ip(),
-        source_port: source_addr.port(),
     });
     template
         .build(tcp_template::PacketRepr {
             dest_addr: repr.dest_addr,
             dest_port: repr.dest_port,
+            source_port: repr.source_port,
             sequence: repr.sequence,
             acknowledgement: repr.acknowledgement,
             payload: repr.payload,
@@ -323,7 +349,7 @@ impl StatelessTcpReadHalf {
 
                     if let Some(ipv4) = Ipv4Packet::new(&payload_for_ipv4) {
                         if let Some(tcp) = process_ipv4(&ipv4) {
-                            if tcp.destination == self.source_port {
+                            if self.source_port.contains(tcp.destination) {
                                 return Some((ipv4.from_packet(), tcp));
                             }
                         }
@@ -341,6 +367,8 @@ impl StatelessTcpReadHalf {
 pub struct PacketRepr<'a> {
     pub dest_addr: Ipv4Addr,
     pub dest_port: u16,
+
+    pub source_port: u16,
 
     pub sequence: u32,
     pub acknowledgement: u32,

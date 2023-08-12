@@ -31,9 +31,6 @@ You'll also have to make a MongoDB database called `mcscanner` with two collecti
 # Firewall port 61000 so your OS doesn't close the connections
 iptables -A INPUT -p tcp --dport 61000 -j DROP
 
-# Run in release mode (faster)
+# Run in release mode
 cargo b -r && sudo ./target/release/matscan
-
-# Or debug mode (slower)
-# cargo b && sudo RUST_BACKTRACE=1 ./target/debug/matscan
 ```
