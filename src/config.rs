@@ -19,6 +19,11 @@ pub struct Config {
     #[serde(default)]
     pub exit_on_done: bool,
 
+    /// The port that we send packets from. You **must** firewall it, otherwise
+    /// your OS will drop connections immediately.
+    #[serde(default)]
+    pub source_port: Option<u16>,
+
     /// The maximum amount of time each scan will take. Defaults to 5 minutes.
     /// You should probably leave it as the default unless you're debugging
     /// something to do with switching modes.

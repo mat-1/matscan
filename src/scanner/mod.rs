@@ -43,10 +43,10 @@ pub struct ActiveFingerprintingData {
 }
 
 impl Scanner {
-    pub fn new() -> Self {
+    pub fn new(source_port: u16) -> Self {
         let seed = rand::random::<u64>();
 
-        let mut client = StatelessTcp::new();
+        let mut client = StatelessTcp::new(source_port);
 
         client.write.fingerprint.mss = client.write.mtu();
         if client.write.has_ethernet_header() {
@@ -307,11 +307,6 @@ impl ScannerReceiver {
         }
 
         self.scanner.purge_old_conns();
-    }
-}
-impl Default for Scanner {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

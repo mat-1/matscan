@@ -98,7 +98,11 @@ pub struct StatelessTcpReadHalf {
 }
 
 impl StatelessTcp {
-    pub fn new() -> Self {
+    /// Create a new stateless TCP instance.
+    ///
+    /// For the source port I usually do 61000 and then firewall it with
+    /// `iptables -A INPUT -p tcp --dport 61000 -j DROP`
+    pub fn new(source_port: u16) -> Self {
         let interface = get_interface();
         println!("interface: {:?}", interface);
 
@@ -142,8 +146,6 @@ impl StatelessTcp {
         if interface_mac.is_some() {
             mtu += ETH_HEADER_LEN;
         }
-
-        let source_port = 61000;
 
         let fingerprint = Fingerprint::default();
 
@@ -332,12 +334,6 @@ impl StatelessTcpReadHalf {
         }
         #[cfg(feature = "benchmark")]
         None
-    }
-}
-
-impl Default for StatelessTcp {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
