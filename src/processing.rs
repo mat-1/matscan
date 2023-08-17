@@ -11,7 +11,10 @@ use std::{
 use async_trait::async_trait;
 use parking_lot::Mutex;
 
-use crate::{config::Config, database::Database};
+use crate::{
+    config::Config,
+    database::{self, bulk_write::CollectionExt, Database},
+};
 
 pub struct SharedData {
     pub database: Database,
@@ -32,13 +35,13 @@ pub struct SharedData {
 
 #[async_trait]
 pub trait ProcessableProtocol: Send + 'static {
-    async fn process(
+    fn process(
         shared: &Arc<Mutex<SharedData>>,
         config: &Config,
         target: SocketAddrV4,
         data: &[u8],
         database: &Database,
-    );
+    ) -> Option<database::bulk_write::BulkUpdate>;
 }
 
 /// A task that processes pings from the queue.
@@ -56,12 +59,17 @@ where
 
         shared.lock().processing_count += 1;
 
-        while let Some((target, data)) = {
-            let item = shared.lock().queue.pop_front();
-            item
-        } {
-            P::process(&shared, &config, target, &data, &database).await;
+        let mut bulk_updates: Vec<database::bulk_write::BulkUpdate> = Vec::new();
+        let updating = shared.lock().queue.drain(..100).collect::<Vec<_>>();
+        for (target, data) in updating {
+            bulk_updates.push(P::process(&shared, &config, target, &data, &database));
         }
+
+        let mongo_db = database.mcscanner_database();
+        mongo_db
+            .collection::<bson::Document>("servers")
+            .bulk_update(&mongo_db, bulk_updates)
+            .await;
 
         shared.lock().processing_count -= 1;
         println!("processing count is now {}", shared.lock().processing_count);

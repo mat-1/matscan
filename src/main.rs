@@ -351,11 +351,9 @@ fn spawn_process_tasks<P: matscan::processing::ProcessableProtocol>(
         task.abort();
     }
 
-    for _ in 0..500 {
-        let shared_process_data = shared_process_data.clone();
-        process_tasks.push(tokio::task::spawn(process_pings::<P>(
-            shared_process_data,
-            config.clone(),
-        )));
-    }
+    let shared_process_data = shared_process_data.clone();
+    process_tasks.push(tokio::task::spawn(process_pings::<P>(
+        shared_process_data,
+        config.clone(),
+    )));
 }

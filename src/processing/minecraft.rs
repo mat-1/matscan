@@ -17,7 +17,7 @@ use tracing::error;
 
 use crate::{
     config::Config,
-    database::{self, CachedIpHash, Database, UpdateResult},
+    database::{self, bulk_write::BulkUpdate, CachedIpHash, Database, UpdateResult},
     scanner::protocols,
 };
 
@@ -25,13 +25,13 @@ use super::{ProcessableProtocol, SharedData};
 
 #[async_trait]
 impl ProcessableProtocol for protocols::Minecraft {
-    async fn process(
+    fn process(
         shared: &Arc<Mutex<SharedData>>,
         config: &Config,
         target: SocketAddrV4,
         data: &[u8],
         database: &Database,
-    ) {
+    ) -> Option<BulkUpdate> {
         let data = String::from_utf8_lossy(data);
 
         let passive_fingerprint = if config.fingerprinting.enabled {
@@ -39,9 +39,6 @@ impl ProcessableProtocol for protocols::Minecraft {
         } else {
             None
         };
-
-        let (update_result, data) =
-            handle_ping(database, &target, &data, passive_fingerprint).await;
 
         if config.snipe.enabled {
             let mut previous_player_usernames = Vec::new();
@@ -94,11 +91,10 @@ impl ProcessableProtocol for protocols::Minecraft {
                     println!("snipe: {current_player} is in {target}");
 
                     if !previous_player_usernames.contains(current_player) {
-                        send_to_webhook(
+                        tokio::task::spawn(send_to_webhook(
                             &config.snipe.webhook_url,
                             &format!("{current_player} joined {target}"),
-                        )
-                        .await;
+                        ));
                     }
                 }
             }
@@ -106,71 +102,66 @@ impl ProcessableProtocol for protocols::Minecraft {
                 if config.snipe.usernames.contains(previous_player)
                     && !current_player_usernames.contains(previous_player)
                 {
-                    send_to_webhook(
+                    tokio::task::spawn(send_to_webhook(
                         &config.snipe.webhook_url,
                         &format!("{previous_player} left {target}"),
-                    )
-                    .await;
+                    ));
                 }
             }
         }
 
-        let mut shared = shared.lock();
-        shared.cached_servers.insert(target, data.clone());
-        shared.results += 1;
-        match update_result {
-            database::UpdateResult::Inserted => {
-                shared.total_new += 1;
-                println!(
-                    "updated {target}, (revived: {}, new: {}, total: {}) (new!)",
-                    shared.revived, shared.total_new, shared.results
-                );
-            }
-            database::UpdateResult::UpdatedAndRevived => {
-                shared.revived += 1;
-                println!(
-                    "updated {target}, (revived: {}, new: {}, total: {}) (revived!)",
-                    shared.revived, shared.total_new, shared.results
-                );
-            }
-            database::UpdateResult::Updated => {
-                println!(
-                    "updated {target}, (revived: {}, new: {}, total: {})",
-                    shared.revived, shared.total_new, shared.results
-                );
+        let response_json: serde_json::Value = match serde_json::from_str(data) {
+            Ok(json) => json,
+            Err(_) => {
+                // not a minecraft server ig
+                return None;
             }
         };
-    }
-}
 
-/// we just pinged a server! clean it up and insert it into the database now
-///
-/// Returns whether the document was inserted/revived/updated, and the parsed
-/// json.
-pub async fn handle_ping(
-    database: &Database,
-    target: &SocketAddrV4,
-    response: &str,
-    passive_minecraft_fingerprint: Option<PassiveMinecraftFingerprint>,
-) -> (UpdateResult, serde_json::Value) {
-    let response_json: serde_json::Value = match serde_json::from_str(response) {
-        Ok(json) => json,
-        Err(_) => {
-            // not a minecraft server ig
-            return (UpdateResult::Updated, serde_json::Value::Null);
-        }
-    };
-
-    if let Some(cleaned_data) = clean_response_data(&response_json, passive_minecraft_fingerprint) {
-        match update_server(database, target, doc! { "$set": cleaned_data }).await {
-            Ok(r) => (r, response_json),
-            Err(err) => {
-                error!("Error updating server: {}", err);
-                (UpdateResult::Updated, response_json)
+        if let Some(cleaned_data) = clean_response_data(&response_json, passive_fingerprint) {
+            let mongo_update = doc! { "$set": cleaned_data };
+            match update_server(database, target, mongo_update).await {
+                Ok(r) => (r, response_json),
+                Err(err) => {
+                    error!("Error updating server: {}", err);
+                    (UpdateResult::Updated, response_json)
+                }
             }
+        } else {
+            (UpdateResult::Updated, response_json)
         }
-    } else {
-        (UpdateResult::Updated, response_json)
+
+        BulkUpdate {
+            query: todo!(),
+            update: todo!(),
+            options: todo!(),
+        }
+
+        // let mut shared = shared.lock();
+        // shared.cached_servers.insert(target, data.clone());
+        // shared.results += 1;
+        // match update_result {
+        //     database::UpdateResult::Inserted => {
+        //         shared.total_new += 1;
+        //         println!(
+        //             "updated {target}, (revived: {}, new: {}, total: {})
+        // (new!)",             shared.revived, shared.total_new,
+        // shared.results         );
+        //     }
+        //     database::UpdateResult::UpdatedAndRevived => {
+        //         shared.revived += 1;
+        //         println!(
+        //             "updated {target}, (revived: {}, new: {}, total: {})
+        // (revived!)",             shared.revived, shared.total_new,
+        // shared.results         );
+        //     }
+        //     database::UpdateResult::Updated => {
+        //         println!(
+        //             "updated {target}, (revived: {}, new: {}, total: {})",
+        //             shared.revived, shared.total_new, shared.results
+        //         );
+        //     }
+        // };
     }
 }
 

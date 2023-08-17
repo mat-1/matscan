@@ -11,7 +11,11 @@ use mongodb::options::UpdateOptions;
 use parking_lot::Mutex;
 use regex::Regex;
 
-use crate::{config::Config, database::Database, scanner::protocols};
+use crate::{
+    config::Config,
+    database::{self, bulk_write::BulkUpdate, Database},
+    scanner::protocols,
+};
 
 use super::{ProcessableProtocol, SharedData};
 
@@ -31,13 +35,13 @@ enum ServerType {
 
 #[async_trait]
 impl ProcessableProtocol for protocols::MinecraftFingerprinting {
-    async fn process(
+    fn process(
         shared: &Arc<Mutex<SharedData>>,
         _config: &Config,
         target: SocketAddrV4,
         data: &[u8],
         database: &Database,
-    ) {
+    ) -> BulkUpdate {
         let data_string = String::from_utf8_lossy(data);
         let server_type = if let Some(packet_name) = VANILLA_ERROR_REGEX
             .captures(&data_string)
@@ -84,25 +88,34 @@ impl ProcessableProtocol for protocols::MinecraftFingerprinting {
             );
         }
 
-        if let Err(e) = database
-            .client
-            .database("mcscanner")
-            .collection::<Document>("servers")
-            .update_one(
-                doc! {
-                    "addr": { "$eq": u32::from(*target.ip()) },
-                    "port": { "$eq": target.port() as u32 }
-                },
-                doc! { "$set": mongo_update },
-                UpdateOptions::default(),
-            )
-            .await
-        {
-            eprintln!("failed to update {target}: {e}");
-        } else {
-            let mut shared = shared.lock();
-            shared.results += 1;
+        BulkUpdate {
+            query: doc! {
+                "addr": { "$eq": u32::from(*target.ip()) },
+                "port": { "$eq": target.port() as u32 }
+            },
+            update: doc! { "$set": mongo_update },
+            options: None,
         }
+
+        // if let Err(e) = database
+        //     .client
+        //     .database("mcscanner")
+        //     .collection::<Document>("servers")
+        //     .update_one(
+        //         doc! {
+        //             "addr": { "$eq": u32::from(*target.ip()) },
+        //             "port": { "$eq": target.port() as u32 }
+        //         },
+        //         doc! { "$set": mongo_update },
+        //         UpdateOptions::default(),
+        //     )
+        //     .await
+        // {
+        //     eprintln!("failed to update {target}: {e}");
+        // } else {
+        //     let mut shared = shared.lock();
+        //     shared.results += 1;
+        // }
     }
 }
 

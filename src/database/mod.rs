@@ -1,3 +1,5 @@
+pub mod bulk_write;
+
 use std::{
     collections::HashSet,
     net::{Ipv4Addr, SocketAddrV4},
@@ -192,10 +194,12 @@ impl Database {
         }
     }
 
+    pub fn mcscanner_database(&self) -> mongodb::Database {
+        self.client.database("mcscanner")
+    }
+
     pub fn servers_coll(&self) -> Collection<Document> {
-        self.client
-            .database("mcscanner")
-            .collection::<Document>("servers")
+        self.mcscanner_database().collection::<Document>("servers")
     }
 
     pub fn get_u32(doc: &Document, key: &str) -> Option<u32> {
