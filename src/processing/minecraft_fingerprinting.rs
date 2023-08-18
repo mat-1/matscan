@@ -6,14 +6,13 @@ use std::{
 };
 
 use async_trait::async_trait;
-use bson::{doc, Bson, Document};
-use mongodb::options::UpdateOptions;
+use bson::{doc, Bson};
 use parking_lot::Mutex;
 use regex::Regex;
 
 use crate::{
     config::Config,
-    database::{self, bulk_write::BulkUpdate, Database},
+    database::{bulk_write::BulkUpdate, Database},
     scanner::protocols,
 };
 
@@ -36,12 +35,12 @@ enum ServerType {
 #[async_trait]
 impl ProcessableProtocol for protocols::MinecraftFingerprinting {
     fn process(
-        shared: &Arc<Mutex<SharedData>>,
+        _shared: &Arc<Mutex<SharedData>>,
         _config: &Config,
         target: SocketAddrV4,
         data: &[u8],
-        database: &Database,
-    ) -> BulkUpdate {
+        _database: &Database,
+    ) -> Option<BulkUpdate> {
         let data_string = String::from_utf8_lossy(data);
         let server_type = if let Some(packet_name) = VANILLA_ERROR_REGEX
             .captures(&data_string)
@@ -88,14 +87,14 @@ impl ProcessableProtocol for protocols::MinecraftFingerprinting {
             );
         }
 
-        BulkUpdate {
+        Some(BulkUpdate {
             query: doc! {
                 "addr": { "$eq": u32::from(*target.ip()) },
                 "port": { "$eq": target.port() as u32 }
             },
             update: doc! { "$set": mongo_update },
             options: None,
-        }
+        })
 
         // if let Err(e) = database
         //     .client

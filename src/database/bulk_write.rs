@@ -1,3 +1,8 @@
+//! An implementation of bulk writes for mongodb since the official driver
+//! doesn't support it yet.
+//!
+//! Based on https://docs.rs/mongodm/latest/mongodm/trait.CollectionExt.html#tymethod.bulk_update
+
 use std::borrow::Borrow;
 
 use async_trait::async_trait;
@@ -6,7 +11,7 @@ use mongodb::options::UpdateOptions;
 use serde::Deserialize;
 
 /// Represents an individual update operation for the `bulk_update` function.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BulkUpdate {
     pub query: Document,
     pub update: Document,

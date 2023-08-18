@@ -111,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
         revived: 0,
         results: 0,
 
-        processing_count: 0,
+        is_processing: false,
     }));
 
     let mut receiver = ScannerReceiver {
@@ -122,7 +122,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let recv_loop_thread = thread::spawn(move || receiver.recv_loop());
 
-    let mut process_tasks = Vec::new();
+    let mut processing_task = ProcessingTask::new(shared_process_data.clone(), config.clone());
 
     loop {
         let start_time = Instant::now();
@@ -147,11 +147,7 @@ async fn main() -> anyhow::Result<()> {
 
                 mode = Some(chosen_mode);
                 *protocol.write() = Box::new(minecraft_protocol.clone());
-                spawn_process_tasks::<protocols::Minecraft>(
-                    &mut process_tasks,
-                    shared_process_data.clone(),
-                    &config,
-                );
+                processing_task.set_protocol::<protocols::Minecraft>();
             }
             ModeCategory::Rescan => {
                 println!("chosen mode: rescanning");
@@ -168,11 +164,7 @@ async fn main() -> anyhow::Result<()> {
                 }
 
                 *protocol.write() = Box::new(minecraft_protocol.clone());
-                spawn_process_tasks::<protocols::Minecraft>(
-                    &mut process_tasks,
-                    shared_process_data.clone(),
-                    &config,
-                );
+                processing_task.set_protocol::<protocols::Minecraft>();
             }
             ModeCategory::Fingerprint => {
                 println!("chosen mode: fingerprinting");
@@ -193,11 +185,7 @@ async fn main() -> anyhow::Result<()> {
                 *protocol.write() = Box::new(protocols::MinecraftFingerprinting::new(
                     fingerprint_protocol_versions,
                 ));
-                spawn_process_tasks::<protocols::MinecraftFingerprinting>(
-                    &mut process_tasks,
-                    shared_process_data.clone(),
-                    &config,
-                );
+                processing_task.set_protocol::<protocols::MinecraftFingerprinting>();
             }
         }
 
@@ -239,7 +227,7 @@ async fn main() -> anyhow::Result<()> {
 
         let processing_start = Instant::now();
         // wait until shared_process_data.processing_count is 0
-        while shared_process_data.lock().processing_count > 0 {
+        while shared_process_data.lock().is_processing {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
         let processing_time = processing_start.elapsed();
@@ -337,23 +325,27 @@ async fn maybe_rescan_with_config(
     Ok(())
 }
 
-/// Make the tasks that will process the ping responses for inserting into the
-/// database.
-///
-/// This also aborts the old tasks.
-fn spawn_process_tasks<P: matscan::processing::ProcessableProtocol>(
-    process_tasks: &mut Vec<tokio::task::JoinHandle<()>>,
-    shared_process_data: Arc<Mutex<SharedData>>,
-    config: &Config,
-) {
-    // abort the current ones
-    for task in process_tasks.drain(..) {
-        task.abort();
-    }
+pub struct ProcessingTask {
+    pub shared_process_data: Arc<Mutex<SharedData>>,
+    pub config: Config,
+    join_handle: Option<tokio::task::JoinHandle<()>>,
+}
 
-    let shared_process_data = shared_process_data.clone();
-    process_tasks.push(tokio::task::spawn(process_pings::<P>(
-        shared_process_data,
-        config.clone(),
-    )));
+impl ProcessingTask {
+    pub fn new(shared_process_data: Arc<Mutex<SharedData>>, config: Config) -> Self {
+        Self {
+            shared_process_data,
+            config,
+            join_handle: None,
+        }
+    }
+    pub fn set_protocol<P: matscan::processing::ProcessableProtocol>(&mut self) {
+        if let Some(join_handle) = &mut self.join_handle {
+            join_handle.abort();
+        }
+        let shared_process_data = self.shared_process_data.clone();
+        let join_handle =
+            tokio::task::spawn(process_pings::<P>(shared_process_data, self.config.clone()));
+        self.join_handle = Some(join_handle);
+    }
 }

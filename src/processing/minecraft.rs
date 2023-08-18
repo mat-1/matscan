@@ -6,10 +6,11 @@ use std::{
     time::SystemTime,
 };
 
+use anyhow::bail;
 use async_trait::async_trait;
 use azalea_chat::FormattedText;
 use bson::{doc, Bson, Document};
-use mongodb::options::FindOneAndUpdateOptions;
+use mongodb::options::UpdateOptions;
 use parking_lot::Mutex;
 use regex::Regex;
 use serde::Deserialize;
@@ -17,7 +18,7 @@ use tracing::error;
 
 use crate::{
     config::Config,
-    database::{self, bulk_write::BulkUpdate, CachedIpHash, Database, UpdateResult},
+    database::{bulk_write::BulkUpdate, CachedIpHash, Database},
     scanner::protocols,
 };
 
@@ -38,6 +39,14 @@ impl ProcessableProtocol for protocols::Minecraft {
             generate_passive_fingerprint(&data).ok()
         } else {
             None
+        };
+
+        let data: serde_json::Value = match serde_json::from_str(&data) {
+            Ok(json) => json,
+            Err(_) => {
+                // not a minecraft server ig
+                return None;
+            }
         };
 
         if config.snipe.enabled {
@@ -92,8 +101,8 @@ impl ProcessableProtocol for protocols::Minecraft {
 
                     if !previous_player_usernames.contains(current_player) {
                         tokio::task::spawn(send_to_webhook(
-                            &config.snipe.webhook_url,
-                            &format!("{current_player} joined {target}"),
+                            config.snipe.webhook_url.clone(),
+                            format!("{current_player} joined {target}"),
                         ));
                     }
                 }
@@ -103,65 +112,27 @@ impl ProcessableProtocol for protocols::Minecraft {
                     && !current_player_usernames.contains(previous_player)
                 {
                     tokio::task::spawn(send_to_webhook(
-                        &config.snipe.webhook_url,
-                        &format!("{previous_player} left {target}"),
+                        config.snipe.webhook_url.clone(),
+                        format!("{previous_player} left {target}"),
                     ));
                 }
             }
         }
 
-        let response_json: serde_json::Value = match serde_json::from_str(data) {
-            Ok(json) => json,
-            Err(_) => {
-                // not a minecraft server ig
-                return None;
-            }
-        };
+        shared.lock().cached_servers.insert(target, data.clone());
 
-        if let Some(cleaned_data) = clean_response_data(&response_json, passive_fingerprint) {
+        if let Some(cleaned_data) = clean_response_data(&data, passive_fingerprint) {
             let mongo_update = doc! { "$set": cleaned_data };
-            match update_server(database, target, mongo_update).await {
-                Ok(r) => (r, response_json),
+            match create_bulk_update(database, &target, mongo_update) {
+                Ok(r) => Some(r),
                 Err(err) => {
                     error!("Error updating server: {}", err);
-                    (UpdateResult::Updated, response_json)
+                    None
                 }
             }
         } else {
-            (UpdateResult::Updated, response_json)
+            None
         }
-
-        BulkUpdate {
-            query: todo!(),
-            update: todo!(),
-            options: todo!(),
-        }
-
-        // let mut shared = shared.lock();
-        // shared.cached_servers.insert(target, data.clone());
-        // shared.results += 1;
-        // match update_result {
-        //     database::UpdateResult::Inserted => {
-        //         shared.total_new += 1;
-        //         println!(
-        //             "updated {target}, (revived: {}, new: {}, total: {})
-        // (new!)",             shared.revived, shared.total_new,
-        // shared.results         );
-        //     }
-        //     database::UpdateResult::UpdatedAndRevived => {
-        //         shared.revived += 1;
-        //         println!(
-        //             "updated {target}, (revived: {}, new: {}, total: {})
-        // (revived!)",             shared.revived, shared.total_new,
-        // shared.results         );
-        //     }
-        //     database::UpdateResult::Updated => {
-        //         println!(
-        //             "updated {target}, (revived: {}, new: {}, total: {})",
-        //             shared.revived, shared.total_new, shared.results
-        //         );
-        //     }
-        // };
     }
 }
 
@@ -341,14 +312,14 @@ fn clean_response_data(
     Some(final_cleaned)
 }
 
-pub async fn update_server(
+pub fn create_bulk_update(
     database: &Database,
     target: &SocketAddrV4,
     mongo_update: Document,
-) -> anyhow::Result<UpdateResult> {
+) -> anyhow::Result<BulkUpdate> {
     if database.shared.lock().bad_ips.contains(target.ip()) && target.port() != 25565 {
         // no
-        return Ok(UpdateResult::Updated);
+        bail!("bad ip");
     }
 
     fn determine_hash(mongo_update: &Document) -> anyhow::Result<u64> {
@@ -413,49 +384,58 @@ pub async fn update_server(
     }
 
     if is_bad_ip {
-        database.add_to_bad_ips(*target.ip()).await?;
-        return Ok(UpdateResult::Updated);
+        tokio::spawn(database.to_owned().add_to_bad_ips(*target.ip()));
+        bail!("bad ip");
     }
 
     // println!("{addr}:{port} -> {mongo_update:?}");
     // println!("{}:{}", target.ip(), target.port());
 
-    let r = database
-        .client
-        .database("mcscanner")
-        .collection::<Document>("servers")
-        .find_one_and_update(
-            doc! {
-                "addr": { "$eq": u32::from(*target.ip()) },
-                "port": { "$eq": target.port() as u32 }
-            },
-            mongo_update,
-            FindOneAndUpdateOptions::builder().upsert(true).build(),
-        )
-        .await?;
+    Ok(BulkUpdate {
+        query: doc! {
+            "addr": { "$eq": u32::from(*target.ip()) },
+            "port": { "$eq": target.port() as u32 }
+        },
+        update: mongo_update,
+        options: Some(UpdateOptions::builder().upsert(true).build()),
+    })
 
-    let update_result = if let Some(r) = &r {
-        let last_pinged = r
-            .get_datetime("timestamp")
-            .expect("timestamp must be present");
-        // last_pinged was more than 2 hours ago
-        if last_pinged.to_system_time().elapsed().unwrap().as_secs() > 60 * 60 * 2 {
-            println!(
-                "! revived {:?}",
-                last_pinged.to_system_time().elapsed().unwrap()
-            );
-            UpdateResult::UpdatedAndRevived
-        } else {
-            UpdateResult::Updated
-        }
-    } else {
-        UpdateResult::Inserted
-    };
+    // let r = database
+    //     .client
+    //     .database("mcscanner")
+    //     .collection::<Document>("servers")
+    //     .find_one_and_update(
+    //         doc! {
+    //             "addr": { "$eq": u32::from(*target.ip()) },
+    //             "port": { "$eq": target.port() as u32 }
+    //         },
+    //         mongo_update,
+    //         FindOneAndUpdateOptions::builder().upsert(true).build(),
+    //     )
+    //     .await?;
 
-    Ok(update_result)
+    // let update_result = if let Some(r) = &r {
+    //     let last_pinged = r
+    //         .get_datetime("timestamp")
+    //         .expect("timestamp must be present");
+    //     // last_pinged was more than 2 hours ago
+    //     if last_pinged.to_system_time().elapsed().unwrap().as_secs() > 60 *
+    // 60 * 2 {         println!(
+    //             "! revived {:?}",
+    //             last_pinged.to_system_time().elapsed().unwrap()
+    //         );
+    //         UpdateResult::UpdatedAndRevived
+    //     } else {
+    //         UpdateResult::Updated
+    //     }
+    // } else {
+    //     UpdateResult::Inserted
+    // };
+
+    // Ok(update_result)
 }
 
-async fn send_to_webhook(webhook_url: &str, message: &str) {
+async fn send_to_webhook(webhook_url: String, message: String) {
     let client = reqwest::Client::new();
     if let Err(e) = client
         .post(webhook_url)

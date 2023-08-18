@@ -216,7 +216,7 @@ impl Database {
         })
     }
 
-    pub async fn add_to_bad_ips(&self, addr: Ipv4Addr) -> anyhow::Result<()> {
+    pub async fn add_to_bad_ips(self, addr: Ipv4Addr) -> anyhow::Result<()> {
         self.shared.lock().bad_ips.insert(addr);
 
         self.client
