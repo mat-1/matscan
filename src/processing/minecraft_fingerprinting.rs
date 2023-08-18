@@ -95,26 +95,6 @@ impl ProcessableProtocol for protocols::MinecraftFingerprinting {
             update: doc! { "$set": mongo_update },
             options: None,
         })
-
-        // if let Err(e) = database
-        //     .client
-        //     .database("mcscanner")
-        //     .collection::<Document>("servers")
-        //     .update_one(
-        //         doc! {
-        //             "addr": { "$eq": u32::from(*target.ip()) },
-        //             "port": { "$eq": target.port() as u32 }
-        //         },
-        //         doc! { "$set": mongo_update },
-        //         UpdateOptions::default(),
-        //     )
-        //     .await
-        // {
-        //     eprintln!("failed to update {target}: {e}");
-        // } else {
-        //     let mut shared = shared.lock();
-        //     shared.results += 1;
-        // }
     }
 }
 

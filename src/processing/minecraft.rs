@@ -399,40 +399,6 @@ pub fn create_bulk_update(
         update: mongo_update,
         options: Some(UpdateOptions::builder().upsert(true).build()),
     })
-
-    // let r = database
-    //     .client
-    //     .database("mcscanner")
-    //     .collection::<Document>("servers")
-    //     .find_one_and_update(
-    //         doc! {
-    //             "addr": { "$eq": u32::from(*target.ip()) },
-    //             "port": { "$eq": target.port() as u32 }
-    //         },
-    //         mongo_update,
-    //         FindOneAndUpdateOptions::builder().upsert(true).build(),
-    //     )
-    //     .await?;
-
-    // let update_result = if let Some(r) = &r {
-    //     let last_pinged = r
-    //         .get_datetime("timestamp")
-    //         .expect("timestamp must be present");
-    //     // last_pinged was more than 2 hours ago
-    //     if last_pinged.to_system_time().elapsed().unwrap().as_secs() > 60 *
-    // 60 * 2 {         println!(
-    //             "! revived {:?}",
-    //             last_pinged.to_system_time().elapsed().unwrap()
-    //         );
-    //         UpdateResult::UpdatedAndRevived
-    //     } else {
-    //         UpdateResult::Updated
-    //     }
-    // } else {
-    //     UpdateResult::Inserted
-    // };
-
-    // Ok(update_result)
 }
 
 async fn send_to_webhook(webhook_url: String, message: String) {
