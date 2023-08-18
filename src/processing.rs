@@ -84,7 +84,7 @@ where
         }
 
         shared.lock().is_processing = false;
-        println!("\x1b[90m\x1b[3mprocessing task is now idle\x1b[m");
+        // println!("\x1b[90m\x1b[3mprocessing task is now idle\x1b[m");
     }
 }
 
@@ -151,14 +151,13 @@ async fn flush_bulk_updates(
             .await?;
 
         revived_count = result_reviving
-            .get("n")
+            .get("nModified")
             .and_then(|n| n.as_i32())
             .unwrap_or_default() as usize;
         updated_but_not_revived_count = result_not_reviving
-            .get("n")
+            .get("nModified")
             .and_then(|n| n.as_i32())
             .unwrap_or_default() as usize;
-        updated_count = revived_count + updated_but_not_revived_count;
         inserted_count = result_reviving
             .get("upserted")
             .and_then(|n| n.as_array())
@@ -169,15 +168,20 @@ async fn flush_bulk_updates(
                 .and_then(|n| n.as_array())
                 .map(|n| n.len())
                 .unwrap_or_default();
+
+        updated_count = revived_count + updated_but_not_revived_count + inserted_count;
     } else {
-        // if we're not upserting then we're probably doing something like fingerprinting so
-        // reviving/inserting doesn't make sense
+        // if we're not upserting then we're probably doing something like
+        // fingerprinting so reviving/inserting doesn't make sense
         let db = database.mcscanner_database();
         let result = db
             .collection::<bson::Document>("servers")
             .bulk_update(&db, bulk_updates)
             .await?;
-        updated_count = result.get("n").and_then(|n| n.as_i32()).unwrap_or_default() as usize;
+        updated_count = result
+            .get("nModified")
+            .and_then(|n| n.as_i32())
+            .unwrap_or_default() as usize;
         updated_but_not_revived_count = 0;
         inserted_count = 0;
         revived_count = 0;
