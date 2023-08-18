@@ -142,7 +142,7 @@ impl ScanRanges {
         }
 
         self.extend(queued_push);
-        if self.count() == 0 {
+        if self.is_empty() {
             println!("uh oh count is 0 after {:?}", exclude_range);
             // *usually* this means there's a problem but sometimes it does
             // legitimately happen with the rescanner
@@ -176,6 +176,10 @@ impl ScanRanges {
             total += range.count();
         }
         total
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ranges.is_empty()
     }
 
     pub fn ranges(&self) -> &Vec<ScanRange> {

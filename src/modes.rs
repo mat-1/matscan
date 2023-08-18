@@ -128,7 +128,11 @@ impl ModePicker {
             );
         }
 
-        std::fs::write("modes.json", serde_json::to_string_pretty(&modes).unwrap()).unwrap();
+        if let Err(err) =
+            std::fs::write("modes.json", serde_json::to_string_pretty(&modes).unwrap())
+        {
+            eprintln!("failed to write modes.json: {err}");
+        }
     }
 }
 

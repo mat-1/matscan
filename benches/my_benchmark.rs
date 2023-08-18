@@ -1,7 +1,7 @@
 use std::net::{Ipv4Addr, SocketAddrV4};
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use matscan::scanner::targets::{ScanRange, ScanRanges, StaticScanRanges};
+use matscan::scanner::targets::{Ipv4Range, ScanRange, ScanRanges, StaticScanRanges};
 use rand::Rng;
 
 fn scan_ranges_index(scan_ranges: &StaticScanRanges, n: usize) -> SocketAddrV4 {
@@ -18,6 +18,15 @@ fn criterion_benchmark(c: &mut Criterion) {
             port_end: 65535,
         }])
     }
+
+    c.bench_function("exclude", |b| {
+        b.iter(|| {
+            ranges.exclude(&Ipv4Range {
+                start: Ipv4Addr::new(1, 64, 64, 64),
+                end: Ipv4Addr::new(1, 96, 96, 96),
+            })
+        })
+    });
 
     let ranges = ranges.to_static();
 
