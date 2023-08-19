@@ -1,16 +1,16 @@
 use std::{fs, net::Ipv4Addr, str::FromStr};
 
-use crate::scanner::targets::Ipv4Range;
+use crate::scanner::targets::{Ipv4Range, Ipv4Ranges};
 
 use anyhow::anyhow;
 
-pub fn parse_file(input: &str) -> anyhow::Result<Vec<Ipv4Range>> {
+pub fn parse_file(input: &str) -> anyhow::Result<Ipv4Ranges> {
     let input = fs::read_to_string(input)?;
 
     parse(&input)
 }
 
-fn parse(input: &str) -> anyhow::Result<Vec<Ipv4Range>> {
+fn parse(input: &str) -> anyhow::Result<Ipv4Ranges> {
     let mut ranges = Vec::new();
 
     for line in input.lines() {
@@ -78,5 +78,5 @@ fn parse(input: &str) -> anyhow::Result<Vec<Ipv4Range>> {
         ranges.push(range);
     }
 
-    Ok(ranges)
+    Ok(Ipv4Ranges::new(ranges))
 }

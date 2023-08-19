@@ -17,7 +17,7 @@ use matscan::{
     processing::{process_pings, SharedData},
     scanner::{
         protocols::{self},
-        targets::{Ipv4Range, ScanRange, ScanRanges},
+        targets::{Ipv4Range, Ipv4Ranges, ScanRange, ScanRanges},
         ScanSession, Scanner, ScannerReceiver,
     },
 };
@@ -189,20 +189,31 @@ async fn main() -> anyhow::Result<()> {
             }
         }
 
-        for range in &exclude_ranges {
-            ranges.exclude(range);
-        }
-        for &ip in &database.shared.lock().bad_ips {
-            // we still scan port 25565 on bad ips (ips that have the same server on every
-            // port)
-            let mut excluded_included = Vec::new();
-            if ranges.exclude(&Ipv4Range::single(ip)) {
-                excluded_included.push(ScanRange::single(ip, 25565));
-            }
-            if !excluded_included.is_empty() {
-                ranges.extend(excluded_included);
-            }
-        }
+        ranges.apply_exclude(&exclude_ranges);
+
+        let bad_ips = Ipv4Ranges::new(
+            database
+                .shared
+                .lock()
+                .bad_ips
+                .clone()
+                .into_iter()
+                .map(Ipv4Range::single)
+                .collect::<Vec<_>>(),
+        );
+        ranges.apply_exclude(&bad_ips);
+        // for &ip in &database.shared.lock().bad_ips {
+        //     // we still scan port 25565 on bad ips (ips that have the same server on
+        // every     // port)
+        //     let mut excluded_included = Vec::new();
+
+        //     if  {
+        //         excluded_included.push(ScanRange::single(ip, 25565));
+        //     }
+        //     if !excluded_included.is_empty() {
+        //         ranges.extend(excluded_included);
+        //     }
+        // }
 
         let target_count = ranges.count();
         println!("scanning {target_count} targets");

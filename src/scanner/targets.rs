@@ -1,6 +1,9 @@
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::{
+    mem,
+    net::{Ipv4Addr, SocketAddrV4},
+};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScanRange {
     pub addr_start: Ipv4Addr,
     pub addr_end: Ipv4Addr,
@@ -66,7 +69,7 @@ impl ScanRange {
     }
 }
 
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub struct ScanRanges {
     /// The ranges in order of `addr_start`.
     ranges: Vec<ScanRange>,
@@ -88,67 +91,91 @@ impl ScanRanges {
     /// Remove the given range from this set of ranges. Inclusive.
     ///
     /// Returns true if at least one address was removed, false otherwise.
-    pub fn exclude(&mut self, exclude_range: &Ipv4Range) -> bool {
-        let mut i = 0;
-        while i < self.ranges.len() && self.ranges[i].addr_end < exclude_range.start {
-            i += 1;
-        }
+    pub fn apply_exclude(&mut self, exclude_ranges: &Ipv4Ranges) {
+        let mut ranges: Vec<ScanRange> = Vec::new();
 
-        let mut queued_push = vec![];
+        let mut scan_ranges = mem::take(&mut self.ranges).into_iter();
+        let mut exclude_ranges = exclude_ranges.ranges.iter();
 
-        let mut removed_any = false;
+        'outer: {
+            let Some(mut scan_range) = scan_ranges.next() else {
+                break 'outer;
+            };
+            let Some(mut exclude_range) = exclude_ranges.next() else {
+                break 'outer;
+            };
 
-        while i < self.ranges.len() && self.ranges[i].addr_start <= exclude_range.end {
-            let range = &mut self.ranges[i];
-            if range.addr_start >= exclude_range.start && range.addr_end <= exclude_range.end {
-                // Range is fully contained in exclude.
-                self.ranges.remove(i);
-                removed_any = true;
-            } else if range.addr_start < exclude_range.start && range.addr_end > exclude_range.end {
-                // Range fully contains the exclude, so split.
-                let other_range = ScanRange {
-                    addr_start: Ipv4Addr::from(u32::from(exclude_range.end) + 1),
-                    addr_end: range.addr_end,
-                    port_start: range.port_start,
-                    port_end: range.port_end,
-                };
-                range.addr_end = Ipv4Addr::from(u32::from(exclude_range.start) - 1);
-                queued_push.push(other_range);
-                i += 1;
-                removed_any = true;
-            } else if range.addr_start < exclude_range.start && range.addr_end <= exclude_range.end
-            {
-                // Cut off end.
-                range.addr_end = Ipv4Addr::from(u32::from(exclude_range.start) - 1);
-                i += 1;
-                removed_any = true;
-            } else if range.addr_start >= exclude_range.start && range.addr_end > exclude_range.end
-            {
-                // Cut off start.
-
-                // changing addr_start would change the position, so it's easier to just delete
-                // it and add it later
-                let range = self.ranges.remove(i);
-                queued_push.push(ScanRange {
-                    addr_start: Ipv4Addr::from(u32::from(exclude_range.end) + 1),
-                    addr_end: range.addr_end,
-                    port_start: range.port_start,
-                    port_end: range.port_end,
-                });
-                removed_any = true;
-            } else {
-                unreachable!();
+            loop {
+                if scan_range.addr_end < exclude_range.start {
+                    // scan_range is before exclude_range
+                    ranges.push(scan_range);
+                    scan_range = match scan_ranges.next() {
+                        Some(scan_range) => scan_range,
+                        None => break 'outer,
+                    };
+                } else if scan_range.addr_start > exclude_range.end {
+                    // scan_range is after exclude_range
+                    exclude_range = match exclude_ranges.next() {
+                        Some(exclude_range) => exclude_range,
+                        None => break 'outer,
+                    };
+                } else if scan_range.addr_start < exclude_range.start
+                    && scan_range.addr_end > exclude_range.end
+                {
+                    // scan_range contains exclude_range
+                    ranges.push(ScanRange {
+                        addr_start: scan_range.addr_start,
+                        addr_end: Ipv4Addr::from(u32::from(exclude_range.start) - 1),
+                        port_start: scan_range.port_start,
+                        port_end: scan_range.port_end,
+                    });
+                    ranges.push(ScanRange {
+                        addr_start: Ipv4Addr::from(u32::from(exclude_range.end) + 1),
+                        addr_end: scan_range.addr_end,
+                        port_start: scan_range.port_start,
+                        port_end: scan_range.port_end,
+                    });
+                    scan_range = match scan_ranges.next() {
+                        Some(scan_range) => scan_range,
+                        None => break 'outer,
+                    };
+                } else if scan_range.addr_start < exclude_range.start {
+                    // scan_range overlaps with exclude_range on the left
+                    ranges.push(ScanRange {
+                        addr_start: scan_range.addr_start,
+                        addr_end: Ipv4Addr::from(u32::from(exclude_range.start) - 1),
+                        port_start: scan_range.port_start,
+                        port_end: scan_range.port_end,
+                    });
+                    scan_range = match scan_ranges.next() {
+                        Some(scan_range) => scan_range,
+                        None => break 'outer,
+                    };
+                } else if scan_range.addr_end > exclude_range.end {
+                    // scan_range overlaps with exclude_range on the right
+                    ranges.push(ScanRange {
+                        addr_start: Ipv4Addr::from(u32::from(exclude_range.end) + 1),
+                        addr_end: scan_range.addr_end,
+                        port_start: scan_range.port_start,
+                        port_end: scan_range.port_end,
+                    });
+                    scan_range = match scan_ranges.next() {
+                        Some(scan_range) => scan_range,
+                        None => break 'outer,
+                    };
+                } else {
+                    // scan_range is contained within exclude_range
+                    scan_range = match scan_ranges.next() {
+                        Some(scan_range) => scan_range,
+                        None => break 'outer,
+                    };
+                }
             }
         }
 
-        self.extend(queued_push);
-        if self.is_empty() {
-            println!("uh oh count is 0 after {:?}", exclude_range);
-            // *usually* this means there's a problem but sometimes it does
-            // legitimately happen with the rescanner
-        }
+        ranges.extend(scan_ranges);
 
-        removed_any
+        self.ranges = ranges;
     }
 
     /// Get the address and port at the given index.
@@ -250,6 +277,42 @@ impl Ipv4Range {
     }
 }
 
+pub struct Ipv4Ranges {
+    ranges: Vec<Ipv4Range>,
+}
+
+impl Ipv4Ranges {
+    pub fn new(mut ranges: Vec<Ipv4Range>) -> Self {
+        ranges.sort_by_key(|r| r.start);
+        Self { ranges }
+    }
+
+    pub fn contains(&self, addr: Ipv4Addr) -> bool {
+        let mut start = 0;
+        let mut end = self.ranges.len();
+        while start < end {
+            let mid = (start + end) / 2;
+            let range = &self.ranges[mid];
+            if range.end < addr {
+                start = mid + 1;
+            } else if range.start > addr {
+                end = mid;
+            } else {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ranges.is_empty()
+    }
+
+    pub fn ranges(&self) -> &Vec<Ipv4Range> {
+        &self.ranges
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -264,10 +327,10 @@ mod test {
             0,
         )]);
 
-        ranges.exclude(&Ipv4Range {
+        ranges.apply_exclude(&Ipv4Ranges::new(vec![Ipv4Range {
             start: Ipv4Addr::new(1, 64, 64, 64),
             end: Ipv4Addr::new(1, 96, 96, 96),
-        });
+        }]));
 
         assert_eq!(
             ranges,
@@ -298,10 +361,10 @@ mod test {
             0,
         )]);
 
-        ranges.exclude(&Ipv4Range {
+        ranges.apply_exclude(&Ipv4Ranges::new(vec![Ipv4Range {
             start: Ipv4Addr::new(1, 32, 32, 32),
             end: Ipv4Addr::new(1, 96, 96, 96),
-        });
+        }]));
 
         assert_eq!(
             ranges,
@@ -318,17 +381,16 @@ mod test {
     #[test]
     fn test_subtract_right() {
         let mut ranges = ScanRanges::new();
-
         ranges.extend(vec![ScanRange::single_port(
             Ipv4Addr::new(1, 32, 32, 32),
             Ipv4Addr::new(1, 128, 128, 128),
             0,
         )]);
 
-        ranges.exclude(&Ipv4Range {
+        ranges.apply_exclude(&Ipv4Ranges::new(vec![Ipv4Range {
             start: Ipv4Addr::new(1, 96, 96, 96),
             end: Ipv4Addr::new(1, 128, 128, 128),
-        });
+        }]));
 
         assert_eq!(
             ranges,
