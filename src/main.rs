@@ -300,7 +300,7 @@ fn process_results(
     if let Some(mode) = mode {
         let added_per_minute = ((total_new + revived) as f64 / elapsed.as_secs_f64()) * 60.0;
         println!(
-            "OK finished adding to db after {} seconds (mode: {mode:?}, updated {results}/{packets_sent}, revived {revived}, added {total_new}, {added_per_minute:.2} new per minute)",
+            "ok finished adding to db after {} seconds (mode: {mode:?}, updated {results}/{packets_sent}, revived {revived}, added {total_new}, {added_per_minute:.2} new per minute)",
             elapsed.as_secs()
         );
         // reviving only gives 1/4 of a point so we still prioritize new servers

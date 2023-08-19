@@ -20,9 +20,6 @@ use super::{ProcessableProtocol, SharedData};
 
 static VANILLA_ERROR_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"java\.io\.IOException: Packet \d+/\d+ \(([^)]+)\)").unwrap());
-static FORGE_ERROR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"This server has mods that require (?:FML)?Forge to be installed on the client. Contact your server admin for more details").unwrap()
-});
 
 #[derive(Eq, PartialEq)]
 enum ServerType {
@@ -66,7 +63,7 @@ impl ProcessableProtocol for protocols::MinecraftFingerprinting {
                     }
                 }
             }
-        } else if FORGE_ERROR_REGEX.is_match(&data_string) {
+        } else if data_string.contains("Forge") {
             ServerType::Forge
         } else if data.starts_with(&[0x03, 0x03, 0x80, 0x02]) {
             ServerType::NodeMinecraftProtocol
