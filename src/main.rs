@@ -303,7 +303,9 @@ fn process_results(
             "OK finished adding to db after {} seconds (mode: {mode:?}, updated {results}/{packets_sent}, revived {revived}, added {total_new}, {added_per_minute:.2} new per minute)",
             elapsed.as_secs()
         );
-        mode_picker.update_mode(mode, (added_per_minute * 60.).round() as usize);
+        // reviving only gives 1/4 of a point so we still prioritize new servers
+        let score = ((total_new as f64) + (revived as f64 / 4.) / elapsed.as_secs_f64()) * 60.0;
+        mode_picker.update_mode(mode, (score * 60.).round() as usize);
     } else {
         println!(
             "ok finished rescanning after {} seconds (updated {results}/{packets_sent}, revived {revived}, {percent:.2}% replied)",
