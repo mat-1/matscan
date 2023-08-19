@@ -121,7 +121,7 @@ async fn flush_bulk_updates(
                 bulk_update.query.insert(
                     "timestamp",
                     doc! {
-                        "$lt": reviving_cutoff.clone()
+                        "$gt": &reviving_cutoff
                     },
                 );
                 bulk_update
@@ -133,7 +133,7 @@ async fn flush_bulk_updates(
                 bulk_update.query.insert(
                     "timestamp",
                     doc! {
-                        "$gte": reviving_cutoff.clone()
+                        "$lte": &reviving_cutoff
                     },
                 );
                 bulk_update

@@ -53,7 +53,8 @@ pub async fn get_ranges(
 
     let mut bad_ips = database.shared.lock().bad_ips.to_owned();
 
-    let mut pipeline: Vec<Document> = vec![doc! { "$match": filter }];
+    let mut pipeline: Vec<Document> = Vec::new();
+    pipeline.push(doc! { "$match": filter });
     pipeline.push(doc! { "$project": { "addr": 1, "port": 1, "_id": 0 } });
 
     let sort = sort.unwrap_or(Sort::Oldest);
