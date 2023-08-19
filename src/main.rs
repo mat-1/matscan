@@ -216,7 +216,8 @@ async fn main() -> anyhow::Result<()> {
         // }
 
         let target_count = ranges.count();
-        println!("scanning {target_count} targets");
+        let range_count = ranges.ranges().len();
+        println!("scanning {target_count} targets ({range_count} ranges)");
 
         // this just spews out syn packets so it doesn't need to know what protocol
         // we're using
@@ -235,6 +236,7 @@ async fn main() -> anyhow::Result<()> {
         while !scanner_thread.is_finished() {
             tokio::time::sleep(Duration::from_millis(100)).await;
         }
+        println!("waiting for processing to finish...");
 
         let processing_start = Instant::now();
         // wait until shared_process_data.processing_count is 0
@@ -251,7 +253,7 @@ async fn main() -> anyhow::Result<()> {
         }
 
         // the thread should've finished by now so it'll join instantly
-        println!("waiting for scanner thread to finish...");
+        println!("joining scanner thread");
         let packets_sent = scanner_thread.join().unwrap();
 
         let mut shared_process_data = shared_process_data.lock();

@@ -117,9 +117,9 @@ impl ProcessableProtocol for protocols::Minecraft {
                     ));
                 }
             }
-        }
 
-        shared.lock().cached_servers.insert(target, data.clone());
+            shared.lock().cached_servers.insert(target, data.clone());
+        }
 
         if let Some(cleaned_data) = clean_response_data(&data, passive_fingerprint) {
             let mongo_update = doc! { "$set": cleaned_data };

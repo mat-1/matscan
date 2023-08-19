@@ -32,15 +32,7 @@ impl ScanRange {
         let port_index = index % port_count;
         let addr = u32::from(self.addr_start) + addr_index as u32;
         let port = self.port_start + port_index as u16;
-        SocketAddrV4::new(
-            Ipv4Addr::new(
-                (addr >> 24) as u8,
-                (addr >> 16) as u8,
-                (addr >> 8) as u8,
-                addr as u8,
-            ),
-            port,
-        )
+        SocketAddrV4::new(Ipv4Addr::from(addr), port)
     }
 
     pub fn single(addr: Ipv4Addr, port: u16) -> Self {
@@ -88,9 +80,7 @@ impl ScanRanges {
         self.ranges.sort_by_key(|r| r.addr_start);
     }
 
-    /// Remove the given range from this set of ranges. Inclusive.
-    ///
-    /// Returns true if at least one address was removed, false otherwise.
+    /// Remove the given ranges from this set of ranges.
     pub fn apply_exclude(&mut self, exclude_ranges: &Ipv4Ranges) {
         let mut ranges: Vec<ScanRange> = Vec::new();
 
