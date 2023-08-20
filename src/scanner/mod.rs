@@ -64,10 +64,11 @@ impl Scanner {
     pub fn purge_old_conns(&mut self) {
         let now = Instant::now();
         let mut to_delete = Vec::new();
-        for (key, conn) in &mut self.conns {
+        for (addr, conn) in &mut self.conns {
             if now - conn.started > Duration::from_secs(30) {
-                // if it took longer than 30 seconds to reply, then drop the connection
-                to_delete.push(*key)
+                println!("dropping connection to {addr} because it took too long");
+                // if it took longer than 60 seconds to reply, then drop the connection
+                to_delete.push(*addr)
             }
         }
         for key in &to_delete {
@@ -125,7 +126,7 @@ impl ScannerReceiver {
                         tcp.sequence + 1,
                     );
 
-                    if let Some(conn) = self.scanner.conns.get(&address) {
+                    if let Some(conn) = self.scanner.conns.get(&address).clone() {
                         if conn.data.is_empty() {
                             debug!("FIN with no data :( {}:{}", ipv4.source, tcp.source);
                             // if there was no data then parse that as a response
@@ -137,6 +138,7 @@ impl ScannerReceiver {
                             }
                         } else {
                             debug!("FIN {}:{}", ipv4.source, tcp.source);
+                            self.scanner.conns.borrow_mut().remove(&address);
                         }
                     } else {
                         debug!(
@@ -213,15 +215,19 @@ impl ScannerReceiver {
                         self.scanner.conns.get_mut(&address)
                     {
                         if tcp.sequence != conn.remote_seq {
-                            warn!("Got wrong seq number {ack_number}! expected {}. This is probably because of a re-transmission.", conn.remote_seq);
+                            let difference = tcp.sequence as i64 - conn.remote_seq as i64;
+                            warn!(
+                                "Got wrong seq number {}! expected {} (difference = {difference}). This is probably because of a re-transmission.",
+                                tcp.sequence,
+                                conn.remote_seq
+                            );
 
-                            // ack anyways lol, maybe they missed a packet we sent
-                            // self.scanner.client.write.send_ack(
-                            //     address,
-                            //     tcp.destination,
-                            //     ack_number,
-                            //     tcp.sequence.wrapping_add(tcp.payload.len() as u32),
-                            // );
+                            self.scanner.client.write.send_ack(
+                                address,
+                                tcp.destination,
+                                ack_number,
+                                conn.remote_seq,
+                            );
 
                             continue;
                         }
@@ -277,14 +283,7 @@ impl ScannerReceiver {
                         Err(e) => {
                             match e {
                                 ParseResponseError::Invalid => {
-                                    trace!("packet error, sending fin");
-                                    self.scanner.client.write.send_fin(
-                                        address,
-                                        tcp.destination,
-                                        ack_number,
-                                        tcp.sequence.wrapping_add(tcp.payload.len() as u32),
-                                    );
-                                    self.scanner.conns.borrow_mut().remove(&address);
+                                    trace!("packet error, ignoring");
                                 }
                                 ParseResponseError::Incomplete { .. } => {
                                     if !is_tracked {

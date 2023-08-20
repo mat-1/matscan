@@ -116,8 +116,8 @@ impl ModePicker {
         *modes_vec[dist.sample(&mut rng)].0
     }
 
-    pub fn update_mode(&mut self, mode: ScanMode, total_new: usize) {
-        self.modes.insert(mode, total_new);
+    pub fn update_mode(&mut self, mode: ScanMode, score: usize) {
+        self.modes.insert(mode, score);
 
         // write modes.json
         let mut modes = serde_json::Map::new();

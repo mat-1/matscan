@@ -118,24 +118,18 @@ async fn flush_bulk_updates(
             .clone()
             .into_iter()
             .map(|mut bulk_update| {
-                bulk_update.query.insert(
-                    "timestamp",
-                    doc! {
-                        "$gt": &reviving_cutoff
-                    },
-                );
+                bulk_update
+                    .query
+                    .insert("timestamp", doc! { "$gt": &reviving_cutoff });
                 bulk_update
             })
             .collect::<Vec<_>>();
         let bulk_updates_reviving = bulk_updates
             .into_iter()
             .map(|mut bulk_update| {
-                bulk_update.query.insert(
-                    "timestamp",
-                    doc! {
-                        "$lte": &reviving_cutoff
-                    },
-                );
+                bulk_update
+                    .query
+                    .insert("timestamp", doc! { "$lte": &reviving_cutoff });
                 bulk_update
             })
             .collect::<Vec<_>>();
