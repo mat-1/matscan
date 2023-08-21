@@ -69,7 +69,6 @@ impl<M: Send + Sync> CollectionExt for mongodb::Collection<M> {
                 "q": &u.query,
                 "u": &u.update,
                 "multi": false,
-                "ordered": false
             };
             if let Some(options) = &u.options {
                 if let Some(upsert) = &options.upsert {
@@ -90,6 +89,7 @@ impl<M: Send + Sync> CollectionExt for mongodb::Collection<M> {
         let mut command = doc! {
             "update": self.name(),
             "updates": update_docs,
+            "ordered": false,
         };
         if let Some(ref write_concern) = self.write_concern() {
             command.insert("writeConcern", to_bson(write_concern)?);
