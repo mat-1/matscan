@@ -2,7 +2,6 @@ use std::{
     collections::{hash_map::DefaultHasher, HashMap, HashSet},
     hash::{Hash, Hasher},
     net::SocketAddrV4,
-    panic::catch_unwind,
     sync::{Arc, LazyLock},
     time::SystemTime,
 };
@@ -143,32 +142,19 @@ fn clean_response_data(
     data: &serde_json::Value,
     passive_minecraft_fingerprint: Option<PassiveMinecraftFingerprint>,
 ) -> Option<Document> {
-    // println!("clean_response_data");
     let data_serde_json = data.as_object()?.to_owned();
-    // println!("data_serde_json: {data_serde_json:?}");
     let mut data = Bson::deserialize(data).ok()?;
     let mut data = data.as_document_mut()?.to_owned();
-    // println!("document: {data:?}");
     // default to empty string if description is missing
     let Some(description) = data_serde_json
         .get("description")
         .map(|d| FormattedText::deserialize(d).unwrap_or_default())
     else {
         // no description, so probably not even a minecraft server
-        // println!("no description");
         return None;
     };
-    // println!("converting to string");
 
-    let description = match catch_unwind(|| description.to_string()) {
-        Ok(description) => description,
-        Err(err) => {
-            println!("error converting to string");
-            println!("data: {data:?}");
-            panic!("{:?}", err);
-        }
-    };
-    // println!("description: {description:?}");
+    let description = description.to_string();
 
     // update description to be a string
     data.insert(
@@ -237,11 +223,11 @@ fn clean_response_data(
                 .unwrap_or_default();
 
             let uuid = uuid.replace('-', "");
-            // check if [0-9a-f]{12}[34][0-9a-f]{19} matches
 
             static UUID_REGEX: LazyLock<Regex> =
                 LazyLock::new(|| Regex::new("[0-9a-f]{12}[34][0-9a-f]{19}").unwrap());
 
+            // anonymous player is a nil uuid so it wouldn't match the regex
             if !UUID_REGEX.is_match(&uuid) && name != "Anonymous Player" {
                 fake_sample = true;
             }
