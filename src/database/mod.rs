@@ -91,7 +91,7 @@ impl Database {
             .await
             .expect("bad servers collection must exist");
         while let Some(Ok(doc)) = cursor.next().await {
-            if let Some(addr) = Self::get_u32(&doc, "addr") {
+            if let Some(addr) = get_u32(&doc, "addr") {
                 bad_ips.insert(Ipv4Addr::from(addr));
             }
         }
@@ -202,20 +202,6 @@ impl Database {
         self.mcscanner_database().collection::<Document>("servers")
     }
 
-    pub fn get_u32(doc: &Document, key: &str) -> Option<u32> {
-        Self::get_i32(doc, key).map(|a| a as u32)
-    }
-
-    pub fn get_i32(doc: &Document, key: &str) -> Option<i32> {
-        doc.get(key).and_then(|a| {
-            if let Some(addr) = a.as_i32() {
-                Some(addr)
-            } else {
-                a.as_i64().map(|a| a as i32)
-            }
-        })
-    }
-
     pub async fn add_to_bad_ips(self, addr: Ipv4Addr) -> anyhow::Result<()> {
         self.shared.lock().bad_ips.insert(addr);
 
@@ -252,6 +238,20 @@ impl Database {
 
         Ok(())
     }
+}
+
+pub fn get_u32(doc: &Document, key: &str) -> Option<u32> {
+    get_i32(doc, key).map(|a| a as u32)
+}
+
+pub fn get_i32(doc: &Document, key: &str) -> Option<i32> {
+    doc.get(key).and_then(|a| {
+        if let Some(addr) = a.as_i32() {
+            Some(addr)
+        } else {
+            a.as_i64().map(|a| a as i32)
+        }
+    })
 }
 
 pub enum UpdateResult {
@@ -352,10 +352,10 @@ pub async fn collect_all_servers(
     let mut servers = Vec::new();
 
     while let Some(doc) = cursor.try_next().await? {
-        let Some(addr) = Database::get_u32(&doc, "addr") else {
+        let Some(addr) = get_u32(&doc, "addr") else {
             continue;
         };
-        let Some(port) = Database::get_u32(&doc, "port") else {
+        let Some(port) = get_u32(&doc, "port") else {
             continue;
         };
         servers.push(SocketAddrV4::new(Ipv4Addr::from(addr), port as u16));

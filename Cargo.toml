@@ -7,8 +7,8 @@ edition = "2021"
 
 [dependencies]
 bson = "2.6.1"
-anyhow = "1.0.72"
-azalea-chat = { git = "https://github.com/mat-1/azalea", default-features = false }
+anyhow = "1.0.75"
+azalea-chat = { git = "https://github.com/mat-1/azalea", default-features = false, rev = "1b6e0244606cf7917e68918d32928550aabf85b0" }
 default-net = "0.17.0"
 dotenv = "0.15.0"
 libc = "0.2.147"
@@ -18,9 +18,9 @@ pnet_macros = "0.34.0"
 pnet_macros_support = "0.34.0"
 rand = "0.8.5"
 regex = "1.9.3"
-serde = "1.0.183"
-serde_json = "1.0.104"
-tokio = { version = "1.30.0", features = ["rt"] }
+serde = "1.0.185"
+serde_json = "1.0.105"
+tokio = { version = "1.32.0", features = ["rt"] }
 tracing = "0.1.37"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 futures-util = "0.3.28"
@@ -32,15 +32,15 @@ reqwest = { version = "0.11.18", default-features = false, features = [
 ] }
 parking_lot = "0.12.1"
 enum-utils = "0.1.2"
-flate2 = "1.0.26"
+flate2 = "1.0.27"
 async-trait = "0.1.73"
-mongodb = "2.6.0"
+mongodb = "2.6.1"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
 
-[profile.release]
-debug = true
+# [profile.release]
+# debug = true
 
 [features]
 benchmark = []

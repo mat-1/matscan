@@ -7,7 +7,7 @@ use bson::{doc, Document};
 use futures_util::StreamExt;
 use mongodb::options::AggregateOptions;
 
-use crate::database::Database;
+use crate::database::{self, Database};
 
 pub async fn get_addrs_and_protocol_versions(
     database: &Database,
@@ -50,8 +50,8 @@ pub async fn get_addrs_and_protocol_versions(
         .unwrap();
 
     while let Some(Ok(doc)) = cursor.next().await {
-        if let Some(addr) = Database::get_u32(&doc, "addr") {
-            if let Some(port) = Database::get_u32(&doc, "port") {
+        if let Some(addr) = database::get_u32(&doc, "addr") {
+            if let Some(port) = database::get_u32(&doc, "port") {
                 let Ok(minecraft) = doc.get_document("minecraft") else {
                     continue;
                 };

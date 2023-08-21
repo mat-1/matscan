@@ -65,8 +65,8 @@ impl Scanner {
         let now = Instant::now();
         let mut to_delete = Vec::new();
         for (addr, conn) in &mut self.conns {
-            if now - conn.started > Duration::from_secs(30) {
-                println!("dropping connection to {addr} because it took too long");
+            if now - conn.started > Duration::from_secs(60) {
+                debug!("dropping connection to {addr} because it took too long");
                 // if it took longer than 60 seconds to reply, then drop the connection
                 to_delete.push(*addr)
             }
@@ -126,7 +126,7 @@ impl ScannerReceiver {
                         tcp.sequence + 1,
                     );
 
-                    if let Some(conn) = self.scanner.conns.get(&address).clone() {
+                    if let Some(conn) = self.scanner.conns.get(&address) {
                         if conn.data.is_empty() {
                             debug!("FIN with no data :( {}:{}", ipv4.source, tcp.source);
                             // if there was no data then parse that as a response
@@ -299,6 +299,7 @@ impl ScannerReceiver {
                                         debug!("connection #{connections_started} started");
                                     }
 
+                                    let conn = self.scanner.conns.get(&address).unwrap();
                                     // always ack whatever they send
                                     // a better tcp implementation would only ack every 2 packets or
                                     // after .5 seconds but this technically still follows the spec
@@ -306,7 +307,7 @@ impl ScannerReceiver {
                                         address,
                                         tcp.destination,
                                         ack_number,
-                                        tcp.sequence.wrapping_add(tcp.payload.len() as u32),
+                                        conn.remote_seq,
                                     );
                                 }
                             };

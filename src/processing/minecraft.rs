@@ -2,6 +2,7 @@ use std::{
     collections::{hash_map::DefaultHasher, HashMap, HashSet},
     hash::{Hash, Hasher},
     net::SocketAddrV4,
+    panic::catch_unwind,
     sync::{Arc, LazyLock},
     time::SystemTime,
 };
@@ -18,7 +19,7 @@ use tracing::error;
 
 use crate::{
     config::Config,
-    database::{bulk_write::BulkUpdate, CachedIpHash, Database},
+    database::{self, bulk_write::BulkUpdate, CachedIpHash, Database},
     scanner::protocols,
 };
 
@@ -158,7 +159,15 @@ fn clean_response_data(
         return None;
     };
     // println!("converting to string");
-    let description = description.to_string();
+
+    let description = match catch_unwind(|| description.to_string()) {
+        Ok(description) => description,
+        Err(err) => {
+            println!("error converting to string");
+            println!("data: {data:?}");
+            panic!("{:?}", err);
+        }
+    };
     // println!("description: {description:?}");
 
     // update description to be a string
@@ -330,11 +339,11 @@ pub fn create_bulk_update(
 
         let description = minecraft.get_str("description").unwrap_or_default();
         let version_name = version.get_str("name").unwrap_or_default();
-        let version_protocol = Database::get_i32(version, "protocol").unwrap_or_default();
+        let version_protocol = database::get_i32(version, "protocol").unwrap_or_default();
         let max_players = minecraft
             .get_document("players")
             .ok()
-            .and_then(|p| Database::get_i32(p, "max"))
+            .and_then(|p| database::get_i32(p, "max"))
             .unwrap_or_default();
 
         let mut hasher = DefaultHasher::new();

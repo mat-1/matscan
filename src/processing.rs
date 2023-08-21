@@ -12,6 +12,7 @@ use std::{
 use async_trait::async_trait;
 use bson::{doc, Bson};
 use parking_lot::Mutex;
+use tracing::trace;
 
 use crate::{
     config::Config,
@@ -67,6 +68,14 @@ where
             let Some(bulk_update) = P::process(&shared, &config, target, &data, &database) else {
                 continue;
             };
+            // check if there's already a bulk update for this server
+            let is_already_updating = bulk_updates.iter().any(|bulk_update| {
+                database::get_u32(&bulk_update.query, "addr") == Some(u32::from(*target.ip()))
+                    && database::get_u32(&bulk_update.query, "port") == Some(target.port() as u32)
+            });
+            if is_already_updating {
+                continue;
+            }
             bulk_updates.push(bulk_update);
             if bulk_updates.len() >= 100 {
                 if let Err(err) =
@@ -118,9 +127,16 @@ async fn flush_bulk_updates(
             .clone()
             .into_iter()
             .map(|mut bulk_update| {
-                bulk_update
-                    .query
-                    .insert("timestamp", doc! { "$gt": &reviving_cutoff });
+                bulk_update.query.insert(
+                    "timestamp",
+                    doc! {
+                        "$gt": &reviving_cutoff,
+                    },
+                );
+                // disable upserting for not_reviving
+                if let Some(options) = &mut bulk_update.options {
+                    options.upsert = Some(false);
+                }
                 bulk_update
             })
             .collect::<Vec<_>>();
@@ -133,6 +149,8 @@ async fn flush_bulk_updates(
                 bulk_update
             })
             .collect::<Vec<_>>();
+        trace!("bulk_updates_not_reviving: {bulk_updates_not_reviving:?}");
+        trace!("bulk_updates_reviving: {bulk_updates_reviving:?}");
 
         let db = database.mcscanner_database();
         let result_not_reviving = db
@@ -143,6 +161,9 @@ async fn flush_bulk_updates(
             .collection::<bson::Document>("servers")
             .bulk_update(&db, bulk_updates_reviving)
             .await?;
+
+        trace!("result_not_reviving: {result_not_reviving:?}");
+        trace!("result_reviving: {result_reviving:?}");
 
         revived_count = result_reviving
             .get("nModified")
@@ -156,12 +177,7 @@ async fn flush_bulk_updates(
             .get("upserted")
             .and_then(|n| n.as_array())
             .map(|n| n.len())
-            .unwrap_or_default()
-            + result_not_reviving
-                .get("upserted")
-                .and_then(|n| n.as_array())
-                .map(|n| n.len())
-                .unwrap_or_default();
+            .unwrap_or_default();
 
         updated_count = revived_count + updated_but_not_revived_count + inserted_count;
     } else {

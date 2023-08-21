@@ -69,18 +69,19 @@ impl<M: Send + Sync> CollectionExt for mongodb::Collection<M> {
                 "q": &u.query,
                 "u": &u.update,
                 "multi": false,
+                "ordered": false
             };
             if let Some(options) = &u.options {
-                if let Some(ref upsert) = options.upsert {
+                if let Some(upsert) = &options.upsert {
                     doc.insert("upsert", upsert);
                 }
-                if let Some(ref collation) = options.collation {
+                if let Some(collation) = &options.collation {
                     doc.insert("collation", to_bson(collation)?);
                 }
-                if let Some(ref array_filters) = options.array_filters {
+                if let Some(array_filters) = &options.array_filters {
                     doc.insert("arrayFilters", array_filters);
                 }
-                if let Some(ref hint) = options.hint {
+                if let Some(hint) = &options.hint {
                     doc.insert("hint", to_bson(hint)?);
                 }
             }

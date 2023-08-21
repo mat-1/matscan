@@ -8,7 +8,10 @@ use futures_util::StreamExt;
 use mongodb::options::AggregateOptions;
 use serde::Deserialize;
 
-use crate::{database::Database, scanner::targets::ScanRange};
+use crate::{
+    database::{self, Database},
+    scanner::targets::ScanRange,
+};
 
 #[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -81,8 +84,8 @@ pub async fn get_ranges(
         .unwrap();
 
     while let Some(Ok(doc)) = cursor.next().await {
-        if let Some(addr) = Database::get_u32(&doc, "addr") {
-            if let Some(port) = Database::get_u32(&doc, "port") {
+        if let Some(addr) = database::get_u32(&doc, "addr") {
+            if let Some(port) = database::get_u32(&doc, "port") {
                 // there shouldn't be any bad ips...
                 let addr = Ipv4Addr::from(addr);
                 if bad_ips.contains(&addr) && port != 25565 {
