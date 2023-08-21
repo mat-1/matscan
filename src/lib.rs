@@ -8,3 +8,4 @@ pub mod modes;
 pub mod net;
 pub mod processing;
 pub mod scanner;
+pub mod terminal_colors;

@@ -11,7 +11,10 @@ pub mod rescan;
 pub mod slash0;
 pub mod slash0_few_ports;
 pub mod slash0_filtered_by_asn;
+pub mod slash0_filtered_by_asn_but_less;
 pub mod slash0_filtered_by_slash24;
+pub mod slash0_filtered_by_slash24_30d;
+pub mod slash0_filtered_by_slash24_new;
 pub mod slash0_filtered_by_slash24_top_1024_ports_uniform;
 pub mod slash0_filtered_by_slash24_top_128_ports_uniform;
 pub mod slash0_filtered_by_slash24_top_ports_weighted;
@@ -33,7 +36,10 @@ pub mod slash32_range_ports_new;
 pub enum ScanMode {
     Slash0FewPorts,
     Slash0FilteredByAsn,
+    Slash0FilteredByAsnButLess,
     Slash0FilteredBySlash24,
+    Slash0FilteredBySlash2430d,
+    Slash0FilteredBySlash24New,
     Slash0FilteredBySlash24Top128PortsUniform,
     Slash0FilteredBySlash24Top1024PortsUniform,
     Slash0FilteredBySlash24TopPortsWeighted,
@@ -87,7 +93,7 @@ impl Default for ModePicker {
             })
             .collect::<HashMap<_, _>>();
 
-        const DEFAULT_FOUND: usize = 2usize.pow(16);
+        const DEFAULT_FOUND: usize = 1_000_000;
         for mode in ScanMode::iter() {
             modes.entry(mode).or_insert(DEFAULT_FOUND);
         }
@@ -108,7 +114,7 @@ impl ModePicker {
             modes_vec
                 .iter()
                 // +1 so if it got 0 there's still a chance to do it again
-                .map(|(_, &count)| count + 1)
+                .map(|(_, &count)| (count.pow(2)) + 1)
                 .collect::<Vec<usize>>(),
         )
         .unwrap();
@@ -142,6 +148,9 @@ impl ScanMode {
             ScanMode::Slash0FewPorts => slash0_few_ports::get_ranges(database).await,
             ScanMode::Slash0 => slash0::get_ranges(database).await,
             ScanMode::Slash0FilteredByAsn => slash0_filtered_by_asn::get_ranges(database).await,
+            ScanMode::Slash0FilteredByAsnButLess => {
+                slash0_filtered_by_asn_but_less::get_ranges(database).await
+            }
             ScanMode::Slash0FilteredBySlash24Top128PortsUniform => {
                 slash0_filtered_by_slash24_top_128_ports_uniform::get_ranges(database).await
             }
@@ -153,6 +162,12 @@ impl ScanMode {
             }
             ScanMode::Slash0FilteredBySlash24 => {
                 slash0_filtered_by_slash24::get_ranges(database).await
+            }
+            ScanMode::Slash0FilteredBySlash2430d => {
+                slash0_filtered_by_slash24_30d::get_ranges(database).await
+            }
+            ScanMode::Slash0FilteredBySlash24New => {
+                slash0_filtered_by_slash24_new::get_ranges(database).await
             }
             ScanMode::Slash24AllPortsButLess => {
                 slash24_all_ports_but_less::get_ranges(database).await

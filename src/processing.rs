@@ -17,6 +17,7 @@ use tracing::trace;
 use crate::{
     config::Config,
     database::{self, bulk_write::CollectionExt, Database},
+    terminal_colors::*,
 };
 
 pub struct SharedData {
@@ -201,34 +202,24 @@ async fn flush_bulk_updates(
     shared.results += updated_count;
     shared.total_new += inserted_count;
     shared.revived += revived_count;
-    const GRAY: &str = "\x1b[90m";
-    // updated
-    const YELLOW: &str = "\x1b[33m";
-    // inserted
-    const BLUE: &str = "\x1b[94m";
-    // revived
-    const GREEN: &str = "\x1b[32m";
-    const BOLD: &str = "\x1b[1m";
-    const RESET: &str = "\x1b[0m";
 
     let mut changes = Vec::new();
     if updated_but_not_revived_count > 0 {
         changes.push(format!(
-            "{YELLOW}updated {BOLD}{updated_but_not_revived_count}{RESET} {GRAY}({}/{}){RESET}",
-            shared.results - shared.revived - shared.total_new,
-            shared.results
+            "{YELLOW}updated {BOLD}{updated_but_not_revived_count}{RESET} {GRAY}({}){RESET}",
+            shared.results - shared.revived - shared.total_new
         ));
     }
     if inserted_count > 0 {
         changes.push(format!(
-            "{BLUE}added {BOLD}{inserted_count}{RESET} {GRAY}({}/{}){RESET}",
-            shared.total_new, shared.results
+            "{BLUE}added {BOLD}{inserted_count}{RESET} {GRAY}({}){RESET}",
+            shared.total_new
         ));
     }
     if revived_count > 0 {
         changes.push(format!(
-            "{GREEN}revived {BOLD}{revived_count}{RESET} {GRAY}({}/{}){RESET}",
-            shared.revived, shared.results
+            "{GREEN}revived {BOLD}{revived_count}{RESET} {GRAY}({}){RESET}",
+            shared.revived
         ));
     }
 

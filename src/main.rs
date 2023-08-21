@@ -20,6 +20,7 @@ use matscan::{
         targets::{Ipv4Range, Ipv4Ranges, ScanRange, ScanRanges},
         ScanSession, Scanner, ScannerReceiver,
     },
+    terminal_colors::*,
 };
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -64,8 +65,8 @@ async fn main() -> anyhow::Result<()> {
     let scanner = Scanner::new(config.source_port);
     let mut mode_picker = ModePicker::default();
 
-    // the number of times we've done a scan, used for switching between rescanning
-    // and scanning
+    // the number of times we've done a scan, used for switching between different
+    // mode categories (rescanning and scanning)
     let mut i = 0;
 
     let rescan_enabled = config.rescan.enabled
@@ -299,7 +300,7 @@ fn process_results(
     if let Some(mode) = mode {
         let added_per_minute = ((total_new + revived) as f64 / elapsed.as_secs_f64()) * 60.0;
         println!(
-            "ok finished adding to db after {} seconds (mode: {mode:?}, updated {results}/{packets_sent}, revived {revived}, added {total_new}, {added_per_minute:.2} new per minute)",
+            "ok finished adding to db after {BOLD}{}{RESET} seconds (mode: {BOLD}{mode:?}{RESET}, {YELLOW}updated {BOLD}{results}{RESET}{YELLOW}/{packets_sent}{RESET}, {GREEN}revived {BOLD}{revived}{RESET}, {BLUE}added {total_new}{RESET}, {BOLD}{added_per_minute:.2}{RESET} new per minute)",
             elapsed.as_secs()
         );
         // reviving only gives 1/4 of a point so we still prioritize new servers
@@ -307,7 +308,7 @@ fn process_results(
         mode_picker.update_mode(mode, (score * 60.).round() as usize);
     } else {
         println!(
-            "ok finished rescanning after {} seconds (updated {results}/{packets_sent}, revived {revived}, {percent:.2}% replied)",
+            "ok finished rescanning after {BOLD}{}{RESET} seconds ({YELLOW}updated {BOLD}{results}{RESET}{YELLOW}/{packets_sent}{RESET}, {GREEN}revived {BOLD}{revived}{RESET}, {BOLD}{percent:.2}%{RESET} replied)",
             elapsed.as_secs(),
             percent = (results as f64 / packets_sent as f64) * 100.0
         );
