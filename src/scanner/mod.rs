@@ -262,18 +262,40 @@ impl ScannerReceiver {
                             let data_string = String::from_utf8_lossy(&data);
                             trace!("\n\n{address} {data_string}");
 
+                            if !is_tracked {
+                                self.scanner.conns.borrow_mut().insert(
+                                    address,
+                                    ConnState {
+                                        data: tcp.payload.to_vec(),
+                                        remote_seq: tcp
+                                            .sequence
+                                            .wrapping_add(tcp.payload.len() as u32),
+                                        started: Instant::now(),
+                                    },
+                                );
+                                connections_started += 1;
+                                debug!("connection #{connections_started} started");
+                            }
+
+                            let conn = self.scanner.conns.get(&address).unwrap();
+
                             self.shared_process_data
                                 .lock()
                                 .queue
                                 .push_back((address, data));
 
+                            self.scanner.client.write.send_ack(
+                                address,
+                                tcp.destination,
+                                ack_number,
+                                conn.remote_seq,
+                            );
                             self.scanner.client.write.send_fin(
                                 address,
                                 tcp.destination,
                                 ack_number,
-                                tcp.sequence.wrapping_add(tcp.payload.len() as u32),
+                                conn.remote_seq,
                             );
-                            self.scanner.conns.borrow_mut().remove(&address);
 
                             if !is_tracked {
                                 connections_started += 1;
@@ -291,7 +313,9 @@ impl ScannerReceiver {
                                             address,
                                             ConnState {
                                                 data: tcp.payload.to_vec(),
-                                                remote_seq: tcp.sequence + tcp.payload.len() as u32,
+                                                remote_seq: tcp
+                                                    .sequence
+                                                    .wrapping_add(tcp.payload.len() as u32),
                                                 started: Instant::now(),
                                             },
                                         );

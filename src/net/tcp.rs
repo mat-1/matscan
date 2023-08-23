@@ -250,7 +250,7 @@ impl StatelessTcpWriteHalf {
             flags: TcpFlags::RST | TcpFlags::ACK,
             window: 32768,
             urgent_ptr: 0,
-            options: &[TcpOption::sack_perm()],
+            options: &[TcpOption::nop(), TcpOption::nop(), TcpOption::sack_perm()],
             payload: &[],
         });
     }
@@ -271,7 +271,7 @@ impl StatelessTcpWriteHalf {
             flags: TcpFlags::FIN | TcpFlags::ACK,
             window: 32768,
             urgent_ptr: 0,
-            options: &[TcpOption::sack_perm()],
+            options: &[TcpOption::nop(), TcpOption::nop(), TcpOption::sack_perm()],
             payload: &[],
         });
     }
