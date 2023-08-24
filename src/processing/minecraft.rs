@@ -163,11 +163,18 @@ fn clean_response_data(
     );
 
     // maybe in the future we can store favicons in a separate collection
-    data.remove("favicon");
+    if data.contains_key("favicon") {
+        data.insert("favicon", Bson::Boolean(true));
+    }
 
-    data.remove("modinfo");
+    if data.contains_key("modinfo") {
+        // forge server
+        data.insert("modinfo", Bson::Boolean(true));
+    }
 
-    data.remove("forgeData");
+    if data.contains_key("forgeData") {
+        data.insert("forgeData", Bson::Boolean(true));
+    }
 
     let version_name = data
         .get("version")
