@@ -122,7 +122,7 @@ impl ScannerReceiver {
                     self.scanner.client.write.send_ack(
                         address,
                         tcp.destination,
-                        tcp.acknowledgement,
+                        tcp.acknowledgement + 1,
                         tcp.sequence + 1,
                     );
 
