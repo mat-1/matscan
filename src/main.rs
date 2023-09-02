@@ -54,6 +54,11 @@ async fn main() -> anyhow::Result<()> {
 
     println!("parsing exclude file");
     let exclude_ranges = exclude::parse_file("exclude.conf")?;
+    println!(
+        "excluding {} ips ({} ranges)",
+        exclude_ranges.count(),
+        exclude_ranges.ranges().len()
+    );
 
     let minecraft_protocol = protocols::Minecraft::new(
         &config.target.addr,
@@ -190,6 +195,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
 
+        let count_before_exclude = ranges.count();
         ranges.apply_exclude(&exclude_ranges);
 
         let bad_ips = Ipv4Ranges::new(
@@ -218,6 +224,10 @@ async fn main() -> anyhow::Result<()> {
         let target_count = ranges.count();
         let range_count = ranges.ranges().len();
         println!("scanning {target_count} targets ({range_count} ranges)");
+        println!(
+            "excluded {} targets from this scan",
+            count_before_exclude - target_count
+        );
 
         // this just spews out syn packets so it doesn't need to know what protocol
         // we're using

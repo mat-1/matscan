@@ -76,7 +76,21 @@ impl ScanRanges {
     /// inefficient, you can call this with a single-item vec if you really need
     /// to.
     pub fn extend(&mut self, ranges: Vec<ScanRange>) {
-        self.ranges.extend(ranges);
+        'outer: for new_range in ranges {
+            for existing_range in &self.ranges {
+                // if the new range is fully contained, skip it
+                if new_range.addr_start >= existing_range.addr_start
+                    && new_range.addr_end <= existing_range.addr_end
+                    && new_range.port_start >= existing_range.port_start
+                    && new_range.port_end <= existing_range.port_end
+                {
+                    println!("skipping {:?}", new_range);
+                    continue 'outer;
+                }
+            }
+            println!("adding {:?}", new_range);
+            self.ranges.push(new_range);
+        }
         self.ranges.sort_by_key(|r| r.addr_start);
     }
 
@@ -94,6 +108,7 @@ impl ScanRanges {
                 break 'outer;
             };
             let Some(mut exclude_range) = exclude_ranges.next() else {
+                ranges.push(scan_range);
                 break 'outer;
             };
 
@@ -318,6 +333,14 @@ impl Ipv4Ranges {
     pub fn ranges(&self) -> &Vec<Ipv4Range> {
         &self.ranges
     }
+
+    pub fn count(&self) -> usize {
+        let mut total: u64 = 0;
+        for range in &self.ranges {
+            total += (u32::from(range.end) as u64) - (u32::from(range.start) as u64) + 1;
+        }
+        total as usize
+    }
 }
 
 #[cfg(test)]
@@ -430,5 +453,21 @@ mod test {
                 end: Ipv4Addr::new(1, 128, 128, 128),
             }]
         );
+    }
+
+    #[test]
+    fn test_count_slash0() {
+        let range = ScanRange::single_port(
+            Ipv4Addr::new(0, 0, 0, 0),
+            Ipv4Addr::new(255, 255, 255, 255),
+            25565,
+        );
+        assert_eq!(range.count(), 4294967296);
+    }
+
+    #[test]
+    fn contains_but_is_empty() {
+        let ranges = Ipv4Ranges::new(vec![]);
+        assert!(!ranges.contains(Ipv4Addr::new(1, 2, 3, 4)));
     }
 }

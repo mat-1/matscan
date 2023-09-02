@@ -105,7 +105,7 @@ impl Default for ModePicker {
 impl ModePicker {
     pub fn pick_mode(&self) -> ScanMode {
         #[cfg(feature = "benchmark")]
-        return ScanMode::Slash32RangePorts;
+        return ScanMode::Slash0;
         // return ScanMode::Slash32RangePorts;
 
         let mut rng: rand::rngs::ThreadRng = rand::thread_rng();
