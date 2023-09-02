@@ -76,21 +76,7 @@ impl ScanRanges {
     /// inefficient, you can call this with a single-item vec if you really need
     /// to.
     pub fn extend(&mut self, ranges: Vec<ScanRange>) {
-        'outer: for new_range in ranges {
-            for existing_range in &self.ranges {
-                // if the new range is fully contained, skip it
-                if new_range.addr_start >= existing_range.addr_start
-                    && new_range.addr_end <= existing_range.addr_end
-                    && new_range.port_start >= existing_range.port_start
-                    && new_range.port_end <= existing_range.port_end
-                {
-                    println!("skipping {:?}", new_range);
-                    continue 'outer;
-                }
-            }
-            println!("adding {:?}", new_range);
-            self.ranges.push(new_range);
-        }
+        self.ranges.extend(ranges);
         self.ranges.sort_by_key(|r| r.addr_start);
     }
 
