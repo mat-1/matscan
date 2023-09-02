@@ -4,6 +4,11 @@ mongodb_uri = 'mongodb://REPLACEME'
 
 # packets per second
 rate = 100_000
+# sleeps after each scan so slow responses don't get attributed to the wrong mode, or so if you're
+# switching protocols (like if you have fingerprinting enabled) you can use this to avoid responses
+# appearing from the previous protocol.
+# if you're always in the same protocol (like how this example config is by default) then you can
+# safely set it to 0 and it probably won't cause issues
 sleep_secs = 10
 
 # if you want to use more source ports then uncomment this:

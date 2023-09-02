@@ -387,7 +387,7 @@ pub fn create_bulk_update(
 
     if is_bad_ip {
         tokio::spawn(database.to_owned().add_to_bad_ips(*target.ip()));
-        bail!("bad ip");
+        bail!("bad ip {target:?}");
     }
 
     // println!("{addr}:{port} -> {mongo_update:?}");

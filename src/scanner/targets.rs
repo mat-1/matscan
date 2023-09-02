@@ -13,7 +13,7 @@ pub struct ScanRange {
 
 impl ScanRange {
     pub fn count_addresses(&self) -> usize {
-        (u32::from(self.addr_end) - u32::from(self.addr_start) + 1) as usize
+        (u32::from(self.addr_end) as u64 - u32::from(self.addr_start) as u64 + 1) as usize
     }
 
     pub fn count_ports(&self) -> usize {

@@ -119,14 +119,25 @@ impl ScannerReceiver {
                     continue;
                 } else if tcp.flags & TcpFlags::FIN != 0 {
                     // FIN
-                    self.scanner.client.write.send_ack(
-                        address,
-                        tcp.destination,
-                        tcp.acknowledgement + 1,
-                        tcp.sequence + 1,
-                    );
 
-                    if let Some(conn) = self.scanner.conns.get(&address) {
+                    if let Some(conn) = self.scanner.conns.get_mut(&address) {
+                        self.scanner.client.write.send_ack(
+                            address,
+                            tcp.destination,
+                            conn.local_seq,
+                            tcp.sequence + 1,
+                        );
+
+                        if !conn.fin_sent {
+                            self.scanner.client.write.send_fin(
+                                address,
+                                tcp.destination,
+                                conn.local_seq,
+                                tcp.sequence + 1,
+                            );
+                            conn.fin_sent = true;
+                        }
+
                         if conn.data.is_empty() {
                             debug!("FIN with no data :( {}:{}", ipv4.source, tcp.source);
                             // if there was no data then parse that as a response
@@ -144,6 +155,12 @@ impl ScannerReceiver {
                         debug!(
                             "FIN with no connection, probably already forgotten by us {}:{}",
                             ipv4.source, tcp.source
+                        );
+                        self.scanner.client.write.send_ack(
+                            address,
+                            tcp.destination,
+                            tcp.acknowledgement,
+                            tcp.sequence + 1,
                         );
                     }
 
@@ -270,7 +287,9 @@ impl ScannerReceiver {
                                         remote_seq: tcp
                                             .sequence
                                             .wrapping_add(tcp.payload.len() as u32),
+                                        local_seq: tcp.acknowledgement,
                                         started: Instant::now(),
+                                        fin_sent: false,
                                     },
                                 );
                                 connections_started += 1;
@@ -316,7 +335,9 @@ impl ScannerReceiver {
                                                 remote_seq: tcp
                                                     .sequence
                                                     .wrapping_add(tcp.payload.len() as u32),
+                                                local_seq: tcp.acknowledgement,
                                                 started: Instant::now(),
+                                                fin_sent: false,
                                             },
                                         );
                                         connections_started += 1;
@@ -369,9 +390,15 @@ pub struct ConnState {
     /// `ack_number` we send; aka the next expected starting sequence number.
     remote_seq: u32,
 
+    /// The sequence number we send.
+    local_seq: u32,
+
     /// The time that the connection was created. Connections are closed 30
     /// seconds after creation (if it wasn't closed earlier).
     started: Instant,
+
+    /// Whether we've sent a fin packet.
+    fin_sent: bool,
 }
 
 pub struct PingResponse {

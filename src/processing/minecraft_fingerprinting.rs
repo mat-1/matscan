@@ -55,8 +55,8 @@ impl ProcessableProtocol for protocols::MinecraftFingerprinting {
                     if packet_name.starts_with("class_") {
                         ServerType::Fabric
                     }
-                    // three letters means vanilla
-                    else if packet_name.len() == 3 {
+                    // 2-3 random letters means vanilla
+                    else if packet_name.len() >= 2 && packet_name.len() <= 3 {
                         ServerType::Vanilla
                     } else {
                         ServerType::Unknown
