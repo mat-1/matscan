@@ -344,7 +344,7 @@ pub async fn collect_all_servers(
                 // .sort(doc! {"_id": 1})
                 .projection(doc! {"addr": 1, "port": 1, "_id": 0})
                 .batch_size(2000)
-                .hint(Some(Hint::Keys(doc! {"addr": 1})))
+                .hint(Some(Hint::Keys(doc! {"addr": 1, "port": 1})))
                 .build(),
         )
         .await?;
