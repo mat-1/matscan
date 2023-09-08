@@ -61,11 +61,11 @@ impl Scanner {
         }
     }
 
-    pub fn purge_old_conns(&mut self) {
+    pub fn purge_old_conns(&mut self, ping_timeout: Duration) {
         let now = Instant::now();
         let mut to_delete = Vec::new();
         for (addr, conn) in &mut self.conns {
-            if now - conn.started > Duration::from_secs(60) {
+            if now - conn.started > ping_timeout {
                 debug!("dropping connection to {addr} because it took too long");
                 // if it took longer than 60 seconds to reply, then drop the connection
                 to_delete.push(*addr)
@@ -85,7 +85,7 @@ pub struct ScannerReceiver {
 }
 
 impl ScannerReceiver {
-    pub fn recv_loop(&mut self) {
+    pub fn recv_loop(&mut self, ping_timeout: Duration) {
         let mut received_from_ips = HashSet::<SocketAddrV4>::new();
         let mut syn_acks_received: usize = 0;
         let mut connections_started: usize = 0;
@@ -366,12 +366,12 @@ impl ScannerReceiver {
             thread::sleep(Duration::from_millis(50));
 
             if last_purge.elapsed() > Duration::from_secs(60) {
-                self.scanner.purge_old_conns();
+                self.scanner.purge_old_conns(ping_timeout);
                 last_purge = Instant::now();
             }
         }
 
-        self.scanner.purge_old_conns();
+        self.scanner.purge_old_conns(ping_timeout);
     }
 }
 

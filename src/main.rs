@@ -126,7 +126,9 @@ async fn main() -> anyhow::Result<()> {
         scanner,
         has_ended: has_ended.clone(),
     };
-    let recv_loop_thread = thread::spawn(move || receiver.recv_loop());
+    let recv_loop_thread = thread::spawn(move || {
+        receiver.recv_loop(Duration::from_secs(config.ping_timeout_secs.unwrap_or(60)))
+    });
 
     let mut processing_task = ProcessingTask::new(shared_process_data.clone(), config.clone());
 

@@ -34,6 +34,11 @@ pub struct Config {
     #[serde(default)]
     pub scan_duration_secs: Option<u64>,
 
+    /// The maximum amount of time to wait for a ping response before giving up.
+    /// Defaults to 60 seconds.
+    #[serde(default)]
+    pub ping_timeout_secs: Option<u64>,
+
     pub target: TargetConfig,
 
     pub scanner: ScannerConfig,
