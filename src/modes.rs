@@ -103,13 +103,26 @@ impl Default for ModePicker {
 }
 
 impl ModePicker {
-    pub fn pick_mode(&self) -> ScanMode {
+    /// Picks a mode to scan with. You can optionally pass a list of modes to
+    /// pick from, otherwise it'll use all of them.
+    pub fn pick_mode(&self, modes: Option<Vec<ScanMode>>) -> ScanMode {
         #[cfg(feature = "benchmark")]
         return ScanMode::Slash0;
         // return ScanMode::Slash32RangePorts;
 
         let mut rng: rand::rngs::ThreadRng = rand::thread_rng();
         let modes_vec = self.modes.iter().collect::<Vec<_>>();
+
+        // filter by the modes argument
+        let modes_vec = if let Some(modes) = modes {
+            modes_vec
+                .into_iter()
+                .filter(|(mode, _)| modes.contains(&mode))
+                .collect::<Vec<_>>()
+        } else {
+            modes_vec
+        };
+
         let dist = WeightedIndex::new(
             modes_vec
                 .iter()

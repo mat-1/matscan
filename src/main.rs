@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
+    str::FromStr,
     sync::{atomic::AtomicBool, Arc},
     thread,
     time::{Duration, Instant},
@@ -132,6 +133,17 @@ async fn main() -> anyhow::Result<()> {
 
     let mut processing_task = ProcessingTask::new(shared_process_data.clone(), config.clone());
 
+    // make sure the modes in config.scanner.modes are valid
+    let scan_modes = config.scanner.modes.map(|modes| {
+        modes
+            .into_iter()
+            .map(|mode| {
+                ScanMode::from_str(&mode)
+                    .expect(&format!("invalid mode {mode:?} in config.scanner.modes"))
+            })
+            .collect::<Vec<_>>()
+    });
+
     loop {
         let start_time = Instant::now();
         i += 1;
@@ -144,7 +156,7 @@ async fn main() -> anyhow::Result<()> {
         let mut mode: Option<ScanMode> = None;
         match mode_category {
             ModeCategory::Normal => {
-                let chosen_mode = mode_picker.pick_mode();
+                let chosen_mode = mode_picker.pick_mode(scan_modes.clone());
 
                 println!("chosen mode: {chosen_mode:?}");
 

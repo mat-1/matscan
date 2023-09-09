@@ -77,6 +77,10 @@ pub struct TargetConfig {
 #[serde(deny_unknown_fields)]
 pub struct ScannerConfig {
     pub enabled: bool,
+    /// The list of modes that we'll use to scan. By default all modes are
+    /// included. Mode names are the same ones as in modes.json.
+    #[serde(default)]
+    pub modes: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Default, Clone)]
