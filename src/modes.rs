@@ -117,7 +117,7 @@ impl ModePicker {
         let modes_vec = if let Some(modes) = modes {
             modes_vec
                 .into_iter()
-                .filter(|(mode, _)| modes.contains(&mode))
+                .filter(|(mode, _)| modes.contains(mode))
                 .collect::<Vec<_>>()
         } else {
             modes_vec

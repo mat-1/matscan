@@ -126,7 +126,7 @@ impl ProcessableProtocol for protocols::Minecraft {
             match create_bulk_update(database, &target, mongo_update) {
                 Ok(r) => Some(r),
                 Err(err) => {
-                    error!("Error updating server: {}", err);
+                    error!("Error updating server: {err}");
                     None
                 }
             }
