@@ -7,6 +7,7 @@ use bson::{doc, Document};
 use futures_util::StreamExt;
 use mongodb::options::AggregateOptions;
 use serde::Deserialize;
+use tracing::warn;
 
 use crate::{
     database::{self, Database},
@@ -84,35 +85,39 @@ pub async fn get_ranges(
         .unwrap();
 
     while let Some(Ok(doc)) = cursor.next().await {
-        if let Some(addr) = database::get_u32(&doc, "addr") {
-            if let Some(port) = database::get_u32(&doc, "port") {
-                // there shouldn't be any bad ips...
-                let addr = Ipv4Addr::from(addr);
-                if bad_ips.contains(&addr) && port != 25565 {
-                    println!("we encountered a bad ip while getting ips to rescan :/ deleting {addr} from database.");
-                    database
-                        .client
-                        .database("mcscanner")
-                        .collection::<bson::Document>("servers")
-                        .delete_many(
-                            doc! {
-                                "addr": u32::from(addr),
-                                "port": { "$ne": 25565 }
-                            },
-                            None,
-                        )
-                        .await?;
-                    // this doesn't actually remove it from the bad_ips database, it just makes it
-                    // so we don't delete twice
-                    bad_ips.remove(&addr);
-                    continue;
-                }
+        let Some(addr) = database::get_u32(&doc, "addr") else {
+            warn!("couldn't get addr for doc: {doc:?}");
+            continue;
+        };
+        let Some(port) = database::get_u32(&doc, "port") else {
+            warn!("couldn't get port for doc: {doc:?}");
+            continue;
+        };
+        // there shouldn't be any bad ips...
+        let addr = Ipv4Addr::from(addr);
+        if bad_ips.contains(&addr) && port != 25565 {
+            println!("we encountered a bad ip while getting ips to rescan :/ deleting {addr} from database.");
+            database
+                .client
+                .database("mcscanner")
+                .collection::<bson::Document>("servers")
+                .delete_many(
+                    doc! {
+                        "addr": u32::from(addr),
+                        "port": { "$ne": 25565 }
+                    },
+                    None,
+                )
+                .await?;
+            // this doesn't actually remove it from the bad_ips database, it just makes it
+            // so we don't delete twice
+            bad_ips.remove(&addr);
+            continue;
+        }
 
-                ranges.push(ScanRange::single(addr, port as u16));
-                if ranges.len() % 1000 == 0 {
-                    println!("{} ips", ranges.len());
-                }
-            }
+        ranges.push(ScanRange::single(addr, port as u16));
+        if ranges.len() % 1000 == 0 {
+            println!("{} ips", ranges.len());
         }
     }
 
