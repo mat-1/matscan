@@ -30,6 +30,7 @@ pub struct SharedData {
     pub cached_servers: HashMap<SocketAddrV4, serde_json::Value>,
 
     pub total_new: usize,
+    pub total_new_on_default_port: usize,
     pub revived: usize,
     pub results: usize,
 
@@ -106,6 +107,7 @@ async fn flush_bulk_updates(
     let updated_count: usize;
     let updated_but_not_revived_count: usize;
     let inserted_count: usize;
+    let inserted_on_default_port_count: usize;
     let revived_count: usize;
 
     let is_upserting = bulk_updates.iter().any(|bulk_update| {
@@ -160,27 +162,27 @@ async fn flush_bulk_updates(
             .await?;
         let result_reviving = db
             .collection::<bson::Document>("servers")
-            .bulk_update(&db, bulk_updates_reviving)
+            .bulk_update(&db, &bulk_updates_reviving)
             .await?;
 
         trace!("result_not_reviving: {result_not_reviving:?}");
         trace!("result_reviving: {result_reviving:?}");
 
-        revived_count = result_reviving
-            .get("nModified")
-            .and_then(|n| n.as_i32())
-            .unwrap_or_default() as usize;
-        updated_but_not_revived_count = result_not_reviving
-            .get("nModified")
-            .and_then(|n| n.as_i32())
-            .unwrap_or_default() as usize;
-        inserted_count = result_reviving
-            .get("upserted")
-            .and_then(|n| n.as_array())
-            .map(|n| n.len())
-            .unwrap_or_default();
+        revived_count = result_reviving.nb_modified as usize;
+        updated_but_not_revived_count = result_not_reviving.nb_modified as usize;
+        inserted_count = result_reviving.upserted.len();
 
         updated_count = revived_count + updated_but_not_revived_count + inserted_count;
+
+        inserted_on_default_port_count = result_reviving
+            .upserted
+            .iter()
+            .filter(|server_update_result| {
+                let server_update = &bulk_updates_reviving[server_update_result.index as usize];
+                let port = database::get_i32(&server_update.query, "port").unwrap_or_default();
+                port == 25565
+            })
+            .count();
     } else {
         // if we're not upserting then we're probably doing something like
         // fingerprinting so reviving/inserting doesn't make sense
@@ -189,18 +191,17 @@ async fn flush_bulk_updates(
             .collection::<bson::Document>("servers")
             .bulk_update(&db, bulk_updates)
             .await?;
-        updated_count = result
-            .get("nModified")
-            .and_then(|n| n.as_i32())
-            .unwrap_or_default() as usize;
+        updated_count = result.nb_modified as usize;
         updated_but_not_revived_count = 0;
         inserted_count = 0;
         revived_count = 0;
+        inserted_on_default_port_count = 0;
     }
 
     let mut shared = shared.lock();
     shared.results += updated_count;
     shared.total_new += inserted_count;
+    shared.total_new_on_default_port += inserted_on_default_port_count;
     shared.revived += revived_count;
 
     let mut changes = Vec::new();

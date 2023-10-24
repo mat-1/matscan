@@ -115,6 +115,7 @@ async fn main() -> anyhow::Result<()> {
         cached_servers: HashMap::new(),
 
         total_new: 0,
+        total_new_on_default_port: 0,
         revived: 0,
         results: 0,
 
@@ -312,6 +313,7 @@ fn process_results(
     packets_sent: u64,
 ) {
     let total_new = shared_process_data.total_new;
+    let total_new_on_default_port = shared_process_data.total_new_on_default_port;
     let revived = shared_process_data.revived;
     let results = shared_process_data.results;
     shared_process_data.total_new = 0;
@@ -327,9 +329,26 @@ fn process_results(
             "ok finished adding to db after {BOLD}{}{RESET} seconds (mode: {BOLD}{mode:?}{RESET}, {YELLOW}updated {BOLD}{results}{RESET}{YELLOW}/{packets_sent}{RESET}, {GREEN}revived {BOLD}{revived}{RESET}, {BLUE}added {total_new}{RESET}, {BOLD}{added_per_minute:.2}{RESET} new per minute)",
             elapsed.as_secs()
         );
-        // reviving only gives 1/4 of a point so we still prioritize new servers
-        let score = ((total_new as f64) + (revived as f64 / 4.) / elapsed.as_secs_f64()) * 60.0;
-        mode_picker.update_mode(mode, (score * 60.).round() as usize);
+
+        // prioritize finding servers on the default port since they're more likely to
+        // last longer
+        const TOTAL_NEW_MULTIPLIER: f64 = 1.0;
+        const TOTAL_NEW_ON_DEFAULT_PORT_MULTIPLIER: f64 = 50.0;
+        const REVIVED_MULTIPLIER: f64 = 0.1;
+
+        let total_new_score = total_new as f64 * TOTAL_NEW_MULTIPLIER;
+        let total_new_on_default_port_score =
+            total_new_on_default_port as f64 * TOTAL_NEW_ON_DEFAULT_PORT_MULTIPLIER;
+        let revived_score = revived as f64 * REVIVED_MULTIPLIER;
+
+        let unnormalized_score = total_new_score + revived_score + total_new_on_default_port_score;
+
+        // score ends up being servers per hour-ish
+        // (we add 30 seconds so if a mode finishes very quickly it's not super biased
+        // towards it)
+        let score = (unnormalized_score * 3600.0 / (elapsed.as_secs_f64() + 30.)).round() as usize;
+        println!("got score {score} from {unnormalized_score} = {total_new_score} + {revived_score} + {total_new_on_default_port_score}");
+        mode_picker.update_mode(mode, score);
     } else {
         println!(
             "ok finished rescanning after {BOLD}{}{RESET} seconds ({YELLOW}updated {BOLD}{results}{RESET}{YELLOW}/{packets_sent}{RESET}, {GREEN}revived {BOLD}{revived}{RESET}, {BOLD}{percent:.2}%{RESET} replied)",

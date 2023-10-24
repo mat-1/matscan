@@ -386,8 +386,11 @@ pub struct ConnState {
     /// The data we've received so far.
     data: Vec<u8>,
 
-    /// The (last received sequence number + payload length); aka the
-    /// `ack_number` we send; aka the next expected starting sequence number.
+    /// The last received sequence number + payload length
+    ///
+    /// aka the `ack_number` we send
+    ///
+    /// aka the next expected starting sequence number.
     remote_seq: u32,
 
     /// The sequence number we send.

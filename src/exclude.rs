@@ -25,6 +25,9 @@ fn parse(input: &str) -> anyhow::Result<Ipv4Ranges> {
         let is_slash = line.contains('/');
         let is_hypen = line.contains('-');
 
+        // remove everything after the first #
+        let line = line.split('#').next().unwrap().trim();
+
         if is_slash && is_hypen {
             return Err(anyhow!(
                 "Invalid exclude range: {} (cannot contain both - and /)",

@@ -44,7 +44,7 @@ pub trait CollectionExt {
         &self,
         db: &mongodb::Database,
         updates: V,
-    ) -> anyhow::Result<Document>
+    ) -> anyhow::Result<BulkUpdateResult>
     where
         V: 'async_trait + Send + Sync + Borrow<Vec<U>>,
         U: 'async_trait + Send + Sync + Borrow<BulkUpdate>;
@@ -56,7 +56,7 @@ impl<M: Send + Sync> CollectionExt for mongodb::Collection<M> {
         &self,
         db: &mongodb::Database,
         updates: V,
-    ) -> anyhow::Result<Document>
+    ) -> anyhow::Result<BulkUpdateResult>
     where
         V: 'async_trait + Send + Sync + Borrow<Vec<U>>,
         U: 'async_trait + Send + Sync + Borrow<BulkUpdate>,
@@ -96,7 +96,6 @@ impl<M: Send + Sync> CollectionExt for mongodb::Collection<M> {
         }
         let res = db.run_command(command, None).await?;
 
-        Ok(res)
-        // Ok(from_document(res)?)
+        Ok(bson::from_document(res)?)
     }
 }
