@@ -412,7 +412,7 @@ pub struct PingResponse {
 impl ScanSession {
     pub fn new(ranges: ScanRanges) -> Self {
         Self {
-            rng: PerfectRng::from_range(ranges.count() as u64),
+            rng: PerfectRng::new(ranges.count() as u64, rand::random(), 14),
             ranges: ranges.to_static(),
         }
     }
