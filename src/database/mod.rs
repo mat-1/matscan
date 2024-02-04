@@ -4,7 +4,7 @@ use std::{
     collections::HashSet,
     net::{Ipv4Addr, SocketAddrV4},
     sync::Arc,
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use bson::{Bson, Document};
@@ -112,7 +112,11 @@ impl Database {
 
         let db_clone = db.clone();
         tokio::spawn(async move {
-            db_clone.delete_spam_historical_players().await;
+            loop {
+                db_clone.delete_spam_historical_players().await;
+                // every 4 hours
+                tokio::time::sleep(Duration::from_secs(60 * 60 * 4)).await;
+            }
         });
 
         Ok(db)
