@@ -322,7 +322,7 @@ pub async fn collect_all_servers(
             }
         }
         CollectServersFilter::Active365d => {
-            if let Some((cached, cached_time)) = &database.shared.lock().cached_all_servers_30_days
+            if let Some((cached, cached_time)) = &database.shared.lock().cached_all_servers_365_days
             {
                 // if it was more than 24 hours ago, download again
                 if cached_time.elapsed().as_secs() < 60 * 60 * 24 {
