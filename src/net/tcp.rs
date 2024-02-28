@@ -18,6 +18,7 @@ use pnet::{
 use tracing::warn;
 
 use crate::{net::tcp_template::TemplatePacketRepr, scanner::SourcePort};
+use crate::net::fingerprint::TcpFingerprint;
 
 use super::{
     raw_sockets::RawSocket,
@@ -38,34 +39,6 @@ fn get_interface() -> NetworkInterface {
         .unwrap()
 }
 
-#[derive(Debug, Clone)]
-pub struct TcpFingerprint {}
-// TODO: make the fingerprint easily customizable
-#[allow(clippy::derivable_impls)]
-impl Default for TcpFingerprint {
-    fn default() -> Self {
-        Self {}
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Fingerprint {
-    /// Link type
-    pub mss: u16,
-    pub tcp: TcpFingerprint,
-}
-
-impl Default for Fingerprint {
-    fn default() -> Self {
-        let mss = 1360;
-
-        Self {
-            mss,
-            tcp: Default::default(),
-        }
-    }
-}
-
 pub struct StatelessTcp {
     pub read: StatelessTcpReadHalf,
     pub write: StatelessTcpWriteHalf,
@@ -84,7 +57,7 @@ pub struct StatelessTcpWriteHalf {
     #[cfg(not(feature = "benchmark"))]
     socket: RawSocket,
 
-    pub fingerprint: Fingerprint,
+    pub fingerprint: TcpFingerprint,
 
     template_syn_packet: TemplatePacket,
 }
@@ -103,7 +76,7 @@ impl StatelessTcp {
     ///
     /// For the source port I usually do 61000 and then firewall it with
     /// `iptables -A INPUT -p tcp --dport 61000 -j DROP`
-    pub fn new(source_port: SourcePort) -> Self {
+    pub fn new(source_port: SourcePort, fingerprint: TcpFingerprint) -> Self {
         let interface = get_interface();
         println!("interface: {:?}", interface);
 
@@ -148,8 +121,6 @@ impl StatelessTcp {
             mtu += ETH_HEADER_LEN;
         }
 
-        let fingerprint = Fingerprint::default();
-
         let write_half = StatelessTcpWriteHalf {
             source_ip: interface_ipv4,
             source_port,
@@ -163,14 +134,10 @@ impl StatelessTcp {
 
             template_syn_packet: TemplatePacket::new(TemplatePacketRepr {
                 flags: TcpFlags::SYN,
-                window: 32768,
+                window: fingerprint.window,
                 urgent_ptr: 0,
-                options: vec![
-                    TcpOption::mss(fingerprint.mss),
-                    TcpOption::nop(),
-                    TcpOption::nop(),
-                    TcpOption::sack_perm(),
-                ],
+                ittl: fingerprint.ittl,
+                options: fingerprint.options.clone(),
                 gateway_mac,
                 interface_mac,
                 source_addr: interface_ipv4,
@@ -300,7 +267,7 @@ impl StatelessTcpWriteHalf {
 
     pub fn send_tcp(&mut self, repr: PacketRepr) {
         let source_addr = SocketAddrV4::new(self.source_ip, repr.source_port);
-        let packet = build_tcp_packet(repr, self.gateway_mac, self.interface_mac, source_addr);
+        let packet = build_tcp_packet(repr, self.gateway_mac, self.interface_mac, source_addr, &self.fingerprint);
         #[cfg(not(feature = "benchmark"))]
         self.socket.send_blocking(&packet);
     }
@@ -311,6 +278,7 @@ fn build_tcp_packet(
     gateway_mac: Option<MacAddr>,
     interface_mac: Option<MacAddr>,
     source_addr: SocketAddrV4,
+    fingerprint: &TcpFingerprint,
 ) -> Vec<u8> {
     let mut template = TemplatePacket::new(TemplatePacketRepr {
         flags: repr.flags,
@@ -320,6 +288,7 @@ fn build_tcp_packet(
         gateway_mac,
         interface_mac,
         source_addr: *source_addr.ip(),
+        ittl: fingerprint.ittl,
     });
     template
         .build(tcp_template::PacketRepr {

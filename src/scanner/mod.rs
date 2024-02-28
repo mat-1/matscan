@@ -26,6 +26,7 @@ use crate::{
     processing::SharedData,
     scanner::protocols::{ParseResponseError, Response},
 };
+use crate::net::fingerprint::TcpFingerprint;
 
 use self::{
     protocols::Protocol,
@@ -44,10 +45,10 @@ pub struct ActiveFingerprintingData {
 }
 
 impl Scanner {
-    pub fn new(source_port: SourcePort) -> Self {
+    pub fn new(source_port: SourcePort, fingerprint: TcpFingerprint) -> Self {
         let seed = rand::random::<u64>();
 
-        let mut client = StatelessTcp::new(source_port);
+        let mut client = StatelessTcp::new(source_port, fingerprint);
 
         client.write.fingerprint.mss = client.write.mtu();
         if client.write.has_ethernet_header() {
