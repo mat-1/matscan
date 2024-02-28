@@ -10,7 +10,6 @@ use pnet::{
     util::MacAddr,
 };
 use pnet_macros_support::packet::MutablePacket;
-use pnet_macros_support::types::u3;
 
 use crate::net::tcp::ETH_HEADER_LEN;
 
