@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use crate::net::fingerprint::TcpFingerprint;
 
 use crate::scanner::SourcePort;
 
@@ -63,6 +64,8 @@ pub struct Config {
 
     #[serde(default)]
     pub fingerprinting: FingerprintingConfig,
+    
+    pub tcp_fingerprint: TcpFingerprintConfig,
 }
 
 #[derive(Deserialize, Clone)]
@@ -121,4 +124,33 @@ pub struct FingerprintingConfig {
     /// If this is false then passive fingerprinting is still done but it won't
     /// be able to gather as much information as active fingerprinting.
     pub enabled: bool,
+}
+
+#[derive(Deserialize, Clone, Default)]
+pub enum TcpFingerprintConfig {
+    #[default]
+    #[serde(rename = "Nintendo 3DS")]
+    Nintendo3DS,
+    
+    #[serde(rename = "Windows XP")]
+    WindowsXP,
+    #[serde(rename = "Windows 7 or 8")]
+    Windows7or8,
+    
+    #[serde(rename = "Linux 3.11 and newer")]
+    Linux311AndNewer,
+    #[serde(rename = "Solaris 8")]
+    Solaris8,
+}
+
+impl TcpFingerprintConfig {
+    pub fn to_fingerprint(&self) -> TcpFingerprint {
+        match self {
+            Self::Nintendo3DS => TcpFingerprint::nintendo_3ds(),
+            Self::WindowsXP => TcpFingerprint::windows_xp(),
+            Self::Windows7or8 => TcpFingerprint::windows_7_or_8(),
+            Self::Linux311AndNewer => TcpFingerprint::linux_3_11_and_newer(),
+            Self::Solaris8 => TcpFingerprint::solaris_8(),
+        }
+    }
 }

@@ -11,6 +11,11 @@ sleep_secs = 10
 # source_port = { min = 61000, max = 65535 }
 # and run `iptables -A INPUT -p tcp --dport 61000:65535 -j DROP`
 
+# uncomment if you want to change the p0f TCP fingerprint of the scanner.
+# will be shown in honeypots that use p0f (mat's honeypot or greynoise.io for example)
+# possible values (case sensitive): "Nintendo 3DS" (default), "Windows XP", "Windows 7 or 8", "Linux 3.11 and newer", "Solaris 8"
+# tcp_fingerprint = "Windows XP"
+
 [target]
 addr = "matscan"
 port = 1337
@@ -30,3 +35,4 @@ limit = 10_000
 [rescan2.filter]
 'minecraft.players.online' = { '$gte' = 1 }
 'minecraft.players.sample' = { '$exists' = true, '$ne' = [] }
+

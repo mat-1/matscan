@@ -76,7 +76,7 @@ impl StatelessTcp {
     ///
     /// For the source port I usually do 61000 and then firewall it with
     /// `iptables -A INPUT -p tcp --dport 61000 -j DROP`
-    pub fn new(source_port: SourcePort) -> Self {
+    pub fn new(source_port: SourcePort, fingerprint: TcpFingerprint) -> Self {
         let interface = get_interface();
         println!("interface: {:?}", interface);
 
@@ -120,8 +120,6 @@ impl StatelessTcp {
         if interface_mac.is_some() {
             mtu += ETH_HEADER_LEN;
         }
-
-        let fingerprint = TcpFingerprint::default();
 
         let write_half = StatelessTcpWriteHalf {
             source_ip: interface_ipv4,
