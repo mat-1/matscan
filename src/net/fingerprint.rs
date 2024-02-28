@@ -99,4 +99,20 @@ impl TcpFingerprint {
             ],
         }
     }
+
+    // p0f fingerprint: *:64:0:*:mss*44,1:mss,sok,ts,nop,ws:df,id+:0
+    pub fn android() -> Self {
+        Self {
+            mss: 1000,
+            ittl: 64,
+            window: 1000*44,
+            options: vec![
+                TcpOption::mss(1000),
+                TcpOption::sack_perm(),
+                TcpOption::timestamp(1, 0),
+                TcpOption::nop(),
+                TcpOption::wscale(1)
+            ]
+        }
+    }
 }

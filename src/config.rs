@@ -142,6 +142,7 @@ pub enum TcpFingerprintConfig {
     Linux311AndNewer,
     #[serde(rename = "Solaris 8")]
     Solaris8,
+    Android,
 }
 
 impl TcpFingerprintConfig {
@@ -152,6 +153,7 @@ impl TcpFingerprintConfig {
             Self::Windows7or8 => TcpFingerprint::windows_7_or_8(),
             Self::Linux311AndNewer => TcpFingerprint::linux_3_11_and_newer(),
             Self::Solaris8 => TcpFingerprint::solaris_8(),
+            Self::Android => TcpFingerprint::android(),
         }
     }
 }

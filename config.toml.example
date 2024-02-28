@@ -13,7 +13,9 @@ sleep_secs = 10
 
 # uncomment if you want to change the p0f TCP fingerprint of the scanner.
 # will be shown in honeypots that use p0f (mat's honeypot or greynoise.io for example)
-# possible values (case sensitive): "Nintendo 3DS" (default), "Windows XP", "Windows 7 or 8", "Linux 3.11 and newer", "Solaris 8"
+# possible values (case sensitive):
+# "Nintendo 3DS" (default), "Windows XP", "Windows 7 or 8", "Android", "Linux 3.11 and newer", "Solaris 8"
+#
 # tcp_fingerprint = "Windows XP"
 
 [target]
