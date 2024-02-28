@@ -64,7 +64,8 @@ pub struct Config {
 
     #[serde(default)]
     pub fingerprinting: FingerprintingConfig,
-    
+
+    #[serde(default)]
     pub tcp_fingerprint: TcpFingerprintConfig,
 }
 
