@@ -10,6 +10,7 @@ use pnet::{
     util::MacAddr,
 };
 use pnet_macros_support::packet::MutablePacket;
+use pnet_macros_support::types::u3;
 
 use crate::net::tcp::ETH_HEADER_LEN;
 
@@ -34,6 +35,7 @@ pub struct TemplatePacketRepr {
     pub window: u16,
     pub urgent_ptr: u16,
     pub options: Vec<TcpOption>,
+    pub ittl: u8,
 
     pub gateway_mac: Option<MacAddr>,
     pub interface_mac: Option<MacAddr>,
@@ -97,13 +99,13 @@ impl TemplatePacket {
             MutableIpv4Packet::new(&mut packet[eth_header_len..]).unwrap();
 
         mutable_ipv4_packet.set_version(4); // ipv4 lol
-        mutable_ipv4_packet.set_header_length(5); // linux always sets this to 5 so so do we
-        mutable_ipv4_packet.set_dscp(0); // prescedence and delay, don't care so 0
+        mutable_ipv4_packet.set_header_length(5); // linux always sets this to 5 - so do we
+        mutable_ipv4_packet.set_dscp(0); // precedence and delay, don't care so 0
         mutable_ipv4_packet.set_ecn(0); // reserved
         mutable_ipv4_packet.set_identification(1); // https://github.com/torvalds/linux/blob/master/net/ipv4/ip_output.c#L165
-        mutable_ipv4_packet.set_flags(0b010); // please don't fragment :pleading_face:
+        mutable_ipv4_packet.set_flags(0b010);
         mutable_ipv4_packet.set_fragment_offset(0); // fragmentation is disabled so 0
-        mutable_ipv4_packet.set_ttl(64); // default unix ttl
+        mutable_ipv4_packet.set_ttl(repr.ittl);
         mutable_ipv4_packet.set_next_level_protocol(IpNextHeaderProtocols::Tcp);
         mutable_ipv4_packet.set_source(repr.source_addr);
         // mutable_ipv4_packet.set_destination(ipv4_packet.destination);
