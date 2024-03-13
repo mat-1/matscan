@@ -16,7 +16,6 @@ use mongodb::{
     Client, Collection,
 };
 use parking_lot::Mutex;
-use serde::{Deserialize, Deserializer, Serializer};
 
 #[derive(Clone)]
 pub struct Database {
@@ -39,33 +38,6 @@ pub struct CachedIpHash {
     /// IP with a different hash.
     pub count: Option<usize>,
     pub hash: u64,
-}
-
-trait Ipv4Serialize: Sized {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer;
-
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>;
-}
-
-// Convert between bool and u8
-impl Ipv4Serialize for Ipv4Addr {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_u32(u32::from(*self))
-    }
-
-    fn deserialize<'de, D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Ok(Ipv4Addr::from(u32::deserialize(deserializer)?))
-    }
 }
 
 impl Database {

@@ -24,6 +24,8 @@ use crate::{
 
 use super::{ProcessableProtocol, SharedData};
 
+const ANONYMOUS_PLAYER_NAME: &str = "Anonymous Player";
+
 #[async_trait]
 impl ProcessableProtocol for protocols::Minecraft {
     fn process(
@@ -95,6 +97,15 @@ impl ProcessableProtocol for protocols::Minecraft {
                 }
             }
 
+            let previous_anon_players_count = previous_player_usernames
+                .iter()
+                .filter(|&p| p == ANONYMOUS_PLAYER_NAME)
+                .count();
+            let current_anon_players_count = current_player_usernames
+                .iter()
+                .filter(|&p| p == ANONYMOUS_PLAYER_NAME)
+                .count();
+
             for current_player in &current_player_usernames {
                 if config.snipe.usernames.contains(current_player) {
                     println!("snipe: {current_player} is in {target}");
@@ -115,6 +126,87 @@ impl ProcessableProtocol for protocols::Minecraft {
                         config.snipe.webhook_url.clone(),
                         format!("{previous_player} left {target}"),
                     ));
+                }
+            }
+
+            if config.snipe.anon_players {
+                let version_name = data
+                    .as_object()
+                    .and_then(|s| s.get("version"))
+                    .and_then(|s| s.as_object())
+                    .and_then(|s| s.get("name"))
+                    .and_then(|s| s.as_str())
+                    .unwrap_or_default();
+                let online_players = data
+                    .as_object()
+                    .and_then(|s| s.get("players"))
+                    .and_then(|s| s.as_object())
+                    .and_then(|s| s.get("online"))
+                    .and_then(|s| s.as_i64())
+                    .unwrap_or_default();
+
+                let new_anon_players = current_anon_players_count - previous_anon_players_count;
+
+                let meets_new_anon_player_req = !previous_player_usernames.is_empty()
+                    && current_anon_players_count > previous_anon_players_count
+                    && new_anon_players >= 2;
+
+                let version_matches = version_name.contains("1.20.4");
+
+                if meets_new_anon_player_req && version_matches && online_players < 25 {
+                    tokio::task::spawn(send_to_webhook(
+                        config.snipe.webhook_url.clone(),
+                        format!("{new_anon_players} anonymous players joined {target}"),
+                    ));
+                } else if version_matches
+                    && previous_anon_players_count == 0
+                    && current_anon_players_count > 0
+                    && online_players < 25
+                {
+                    let webhook_url = config.snipe.webhook_url.clone();
+                    let database = database.clone();
+                    tokio::task::spawn(async move {
+                        // check that there were no anonymous players before
+                        let servers_coll = database.servers_coll();
+                        let current_data = servers_coll
+                            .find_one(
+                                doc! {
+                                    "addr": u32::from(*target.ip()),
+                                    "port": target.port() as u32
+                                },
+                                None,
+                            )
+                            .await
+                            .unwrap_or_default()
+                            .unwrap_or_default();
+
+                        let mut historical_player_names = Vec::new();
+                        if let Some(sample) =
+                            current_data.get("players").and_then(|s| s.as_document())
+                        {
+                            for (_, player) in sample {
+                                if let Some(player) = player.as_document() {
+                                    let username = player
+                                        .get("name")
+                                        .and_then(|s| s.as_str())
+                                        .unwrap_or_default();
+                                    historical_player_names.push(username.to_string());
+                                }
+                            }
+                        }
+
+                        let has_historical_anon = historical_player_names
+                            .iter()
+                            .any(|p| p == ANONYMOUS_PLAYER_NAME);
+
+                        if !has_historical_anon {
+                            send_to_webhook(
+                                webhook_url,
+                                format!("anonymous player joined {target} for the first time"),
+                            )
+                            .await;
+                        }
+                    });
                 }
             }
 
@@ -235,7 +327,7 @@ fn clean_response_data(
                 LazyLock::new(|| Regex::new("[0-9a-f]{12}[34][0-9a-f]{19}").unwrap());
 
             // anonymous player is a nil uuid so it wouldn't match the regex
-            if !UUID_REGEX.is_match(&uuid) && name != "Anonymous Player" {
+            if !UUID_REGEX.is_match(&uuid) && name != ANONYMOUS_PLAYER_NAME {
                 fake_sample = true;
             }
 
@@ -452,8 +544,8 @@ pub fn generate_passive_fingerprint(data: &str) -> anyhow::Result<PassiveMinecra
 
         let keys = data
             .keys()
+            .filter(|&k| correct_order.contains(&k.as_str()))
             .cloned()
-            .filter(|k| correct_order.contains(&k.as_str()))
             .collect::<Vec<_>>();
 
         let players = data.get("players").and_then(|s| s.as_object());
@@ -465,16 +557,16 @@ pub fn generate_passive_fingerprint(data: &str) -> anyhow::Result<PassiveMinecra
         let players_keys = players
             .map(|s| {
                 s.keys()
+                    .filter(|&k| correct_players_order.contains(&k.as_str()))
                     .cloned()
-                    .filter(|k| correct_players_order.contains(&k.as_str()))
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();
         let version_keys = version
             .map(|s| {
                 s.keys()
+                    .filter(|&k| correct_version_order.contains(&k.as_str()))
                     .cloned()
-                    .filter(|k| correct_version_order.contains(&k.as_str()))
                     .collect::<Vec<_>>()
             })
             .unwrap_or_default();

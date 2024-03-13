@@ -110,6 +110,10 @@ pub struct SnipeConfig {
     pub enabled: bool,
     pub webhook_url: String,
     pub usernames: Vec<String>,
+    /// Whether we should log when a lot of anonymous players suddenly join a
+    /// server.
+    #[serde(default)]
+    pub anon_players: bool,
 }
 
 #[derive(Deserialize, Clone, Default)]

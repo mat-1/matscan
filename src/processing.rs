@@ -225,14 +225,7 @@ async fn flush_bulk_updates(
     }
 
     if !changes.is_empty() {
-        println!(
-            "{}",
-            changes
-                .into_iter()
-                .collect::<Vec<_>>()
-                .join(", ")
-                .to_string()
-        );
+        println!("{}", changes.into_iter().collect::<Vec<_>>().join(", "));
     }
 
     Ok(())

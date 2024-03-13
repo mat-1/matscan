@@ -140,7 +140,7 @@ async fn main() -> anyhow::Result<()> {
             .into_iter()
             .map(|mode| {
                 ScanMode::from_str(&mode)
-                    .expect(&format!("invalid mode {mode:?} in config.scanner.modes"))
+                    .unwrap_or_else(|_| panic!("invalid mode {mode:?} in config.scanner.modes"))
             })
             .collect::<Vec<_>>()
     });
