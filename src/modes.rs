@@ -110,6 +110,12 @@ impl ModePicker {
         return ScanMode::Slash0;
         // return ScanMode::Slash32RangePorts;
 
+        // if they're all 0, pick Slash0.
+        // this mostly fixes a bug where some modes panic when the database is empty.
+        if self.modes.values().all(|&count| count == 0) {
+            return ScanMode::Slash0;
+        }
+
         let mut rng: rand::rngs::ThreadRng = rand::thread_rng();
         let modes_vec = self.modes.iter().collect::<Vec<_>>();
 
