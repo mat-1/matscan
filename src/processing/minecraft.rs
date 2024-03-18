@@ -37,11 +37,7 @@ impl ProcessableProtocol for protocols::Minecraft {
     ) -> Option<BulkUpdate> {
         let data = String::from_utf8_lossy(data);
 
-        let passive_fingerprint = if config.fingerprinting.enabled {
-            generate_passive_fingerprint(&data).ok()
-        } else {
-            None
-        };
+        let passive_fingerprint = generate_passive_fingerprint(&data).ok();
 
         let data: serde_json::Value = match serde_json::from_str(&data) {
             Ok(json) => json,
@@ -151,12 +147,19 @@ impl ProcessableProtocol for protocols::Minecraft {
                     && current_anon_players_count > previous_anon_players_count
                     && new_anon_players >= 2;
 
+                let every_online_player_is_anon = current_player_usernames
+                    .iter()
+                    .all(|p| p == ANONYMOUS_PLAYER_NAME);
+                // there's some servers that have a bunch of bots that leave and join, and they're shown as anonymous players in the sample
+                let too_many_anon_players =
+                    current_anon_players_count >= 8 && every_online_player_is_anon;
+
                 let version_matches = version_name.contains("1.20.4");
 
-                if meets_new_anon_player_req && version_matches && online_players < 25 {
+                if meets_new_anon_player_req && version_matches && online_players < 25 && !too_many_anon_players {
                     tokio::task::spawn(send_to_webhook(
                         config.snipe.webhook_url.clone(),
-                        format!("{new_anon_players} anonymous players joined {target}"),
+                        format!("{new_anon_players} anonymous players joined **{target}**"),
                     ));
                 } else if version_matches
                     && previous_anon_players_count == 0
@@ -202,7 +205,7 @@ impl ProcessableProtocol for protocols::Minecraft {
                         if !has_historical_anon {
                             send_to_webhook(
                                 webhook_url,
-                                format!("anonymous player joined {target} for the first time"),
+                                format!("anonymous player joined **{target}** for the first time"),
                             )
                             .await;
                         }
