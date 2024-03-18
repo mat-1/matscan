@@ -150,13 +150,18 @@ impl ProcessableProtocol for protocols::Minecraft {
                 let every_online_player_is_anon = current_player_usernames
                     .iter()
                     .all(|p| p == ANONYMOUS_PLAYER_NAME);
-                // there's some servers that have a bunch of bots that leave and join, and they're shown as anonymous players in the sample
+                // there's some servers that have a bunch of bots that leave and join, and
+                // they're shown as anonymous players in the sample
                 let too_many_anon_players =
                     current_anon_players_count >= 8 && every_online_player_is_anon;
 
                 let version_matches = version_name.contains("1.20.4");
 
-                if meets_new_anon_player_req && version_matches && online_players < 25 && !too_many_anon_players {
+                if meets_new_anon_player_req
+                    && version_matches
+                    && online_players < 25
+                    && !too_many_anon_players
+                {
                     tokio::task::spawn(send_to_webhook(
                         config.snipe.webhook_url.clone(),
                         format!("{new_anon_players} anonymous players joined **{target}**"),

@@ -52,13 +52,29 @@ pub fn build_fingerprint_request(hostname: &str, port: u16, protocol_version: i3
     let mut full_buffer = vec![];
     write_varint(&mut full_buffer, buffer.len() as i32); // length of 1st packet id + data as VarInt
     full_buffer.append(&mut buffer);
-    full_buffer.extend_from_slice(&[
-        4,    // length of following data
-        0x00, // packet id
-        0x00, // username length
-        0x00, // no uuid
-        0x00, // extra data (to cause error)
-    ]);
+
+    // ServerboundHelloPacket was changed in 23w31a (1.20.2) so the uuid is no
+    // longer optional
+    if (protocol_version >= 764 && protocol_version < 0x40000000)
+        || (protocol_version >= 1073741968)
+    {
+        #[rustfmt::skip]
+        full_buffer.extend_from_slice(&[
+            19,   // length of following data
+            0x00, // packet id
+            0x00, // username length
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // uuid
+            0x00, // extra data (to cause error)
+        ]);
+    } else {
+        full_buffer.extend_from_slice(&[
+            4,    // length of following data
+            0x00, // packet id
+            0x00, // username length
+            0x00, // no uuid
+            0x00, // extra data (to cause error)
+        ]);
+    }
 
     full_buffer
 }
