@@ -18,8 +18,9 @@ use crate::{
 
 use super::{ProcessableProtocol, SharedData};
 
-static VANILLA_ERROR_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"java\.io\.IOException: Packet \d+/\d+ \(([^)]+)\)").unwrap());
+static VANILLA_ERROR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"java\.io\.IOException: Packet (?:\d+|login)\/\d+ \(([^)]+)\)").unwrap()
+});
 
 #[derive(Eq, PartialEq)]
 enum ServerType {

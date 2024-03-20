@@ -340,15 +340,19 @@ fn clean_response_data(
             }
 
             if !mixed_online_mode {
-                // uuidv4 means online mode
-                // uuidv3 means offline mode
-                let is_uuidv4 = uuid.len() >= 12 && uuid[12..].starts_with('4');
-                if (is_uuidv4 && is_online_mode == Some(false))
-                    || (!is_uuidv4 && is_online_mode == Some(true))
-                {
-                    mixed_online_mode = true;
-                } else if is_online_mode.is_none() {
-                    is_online_mode = Some(is_uuidv4);
+                // ignore nil uuids (anonymous players)
+                let is_nil = uuid.chars().all(|c| c == '0');
+                if !is_nil {
+                    // uuidv4 means online mode
+                    // uuidv3 means offline mode
+                    let is_uuidv4 = uuid.len() >= 12 && uuid[12..].starts_with('4');
+                    if (is_uuidv4 && is_online_mode == Some(false))
+                        || (!is_uuidv4 && is_online_mode == Some(true))
+                    {
+                        mixed_online_mode = true;
+                    } else if is_online_mode.is_none() {
+                        is_online_mode = Some(is_uuidv4);
+                    }
                 }
             }
 
@@ -406,6 +410,10 @@ fn clean_response_data(
         final_cleaned.insert(
             "fingerprint.minecraft.emptySample",
             Bson::Boolean(passive_minecraft_fingerprint.empty_sample),
+        );
+        final_cleaned.insert(
+            "fingerprint.minecraft.emptyFavicon",
+            Bson::Boolean(passive_minecraft_fingerprint.empty_favicon),
         );
     }
 
@@ -524,6 +532,8 @@ pub struct PassiveMinecraftFingerprint {
     pub field_order: Option<String>,
     /// Servers shouldn't have the sample field if there are no players online.
     pub empty_sample: bool,
+    /// A favicon that has the string ""
+    pub empty_favicon: bool,
 }
 pub fn generate_passive_fingerprint(data: &str) -> anyhow::Result<PassiveMinecraftFingerprint> {
     let data: serde_json::Value = serde_json::from_str(data)?;
@@ -534,6 +544,8 @@ pub fn generate_passive_fingerprint(data: &str) -> anyhow::Result<PassiveMinecra
         .and_then(|s| s.get("protocol"))
         .and_then(|s| s.as_u64())
         .unwrap_or_default();
+
+    let empty_favicon = data.get("favicon").map(|s| s.as_str()) == Some(Some(""));
 
     let mut incorrect_order = false;
     let mut field_order = None;
@@ -615,5 +627,6 @@ pub fn generate_passive_fingerprint(data: &str) -> anyhow::Result<PassiveMinecra
         incorrect_order,
         field_order,
         empty_sample,
+        empty_favicon,
     })
 }
