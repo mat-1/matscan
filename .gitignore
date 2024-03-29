@@ -2,6 +2,7 @@
 
 config.toml
 *-config.toml
+!example-config.toml
 .env
 
 modes.json

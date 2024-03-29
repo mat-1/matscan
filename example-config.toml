@@ -1,0 +1,32 @@
+# see src/config.rs for all options and descriptions
+
+mongodb_uri = 'mongodb://REPLACEME'
+
+# packets per second
+rate = 100_000
+# sleeps after each scan so slow responses don't get attributed to the wrong mode
+sleep_secs = 10
+
+# if you want to use more source ports then uncomment this:
+# source_port = { min = 61000, max = 65535 }
+# and run `iptables -A INPUT -p tcp --dport 61000:65535 -j DROP`
+
+[target]
+addr = "matscan"
+port = 1337
+protocol_version = 47
+
+[scanner]
+enabled = true
+
+[rescan]
+enabled = true
+rescan_every_secs = 3600
+
+[rescan2]
+enabled = false
+rescan_every_secs = 600
+limit = 10_000
+[rescan2.filter]
+'minecraft.players.online' = { '$gte' = 1 }
+'minecraft.players.sample' = { '$exists' = true, '$ne' = [] }
