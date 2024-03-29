@@ -21,6 +21,10 @@ pub async fn get_ranges(database: &Database) -> anyhow::Result<Vec<ScanRange>> {
     let ranges: HashMap<(u8, u8, u8), ServerGroup> = to_ranges(&known_servers);
     println!("converted into {} ranges", ranges.len());
 
+    if ranges.is_empty() {
+        return Ok(vec![]);
+    }
+
     let mut rng = thread_rng();
     let mut target_ranges = Vec::new();
 

@@ -27,7 +27,7 @@ Also if you do intend on using any of the code here, please read the [license](L
 
 It is assumed that you know the basics of server scanning. Otherwise, I recommend reading the [masscan readme](https://github.com/robertdavidgraham/masscan/blob/master/README.md) and [documentation](https://github.com/robertdavidgraham/masscan/blob/master/doc/masscan.8.markdown). Also be aware that matscan only supports Linux, but you probably shouldn't be running it at home anyways.
 
-Rename `config.toml.example` to `config.toml` and fill in the fields.
+Rename `example-config.toml` to `config.toml` and fill in the fields.
 
 You'll also have to make a MongoDB database called `mcscanner` with two collections called `servers` and `bad_servers`. You should add a unique index for `addr+port` and a normal index for `timestamp` in the `servers` collection.
 

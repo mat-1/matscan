@@ -55,9 +55,9 @@ pub fn build_fingerprint_request(hostname: &str, port: u16, protocol_version: i3
 
     // ServerboundHelloPacket was changed in 23w31a (1.20.2) so the uuid is no
     // longer optional
-    if (protocol_version >= 764 && protocol_version < 0x40000000)
-        || (protocol_version >= 1073741968)
-    {
+    // if (protocol_version >= 764 && protocol_version < 0x40000000)
+    //     || (protocol_version >= 1073741968)
+    if matches!(protocol_version, 764..=0x40000000 | 1073741968..) {
         #[rustfmt::skip]
         full_buffer.extend_from_slice(&[
             19,   // length of following data

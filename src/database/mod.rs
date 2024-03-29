@@ -262,32 +262,33 @@ pub async fn collect_all_servers(
             doc! {
                 "timestamp": {
                     // up to 30 days ago
-                    "$gt": bson::DateTime::from(SystemTime::now() - std::time::Duration::from_secs(60 * 60 * 24 * 30)),
+                    "$gt": bson::DateTime::from(SystemTime::now() - Duration::from_secs(60 * 60 * 24 * 30)),
                 }
             }
         }
         CollectServersFilter::New => {
             if let Some((cached, cached_time)) = &database.shared.lock().cached_all_servers_new {
                 // if it was more than 24 hours ago, download again
-                if cached_time.elapsed().as_secs() < 60 * 60 * 24 {
+                if cached_time.elapsed() < Duration::from_secs(60 * 60 * 24) {
                     return Ok(cached.clone());
                 }
             }
-            // first 4 bytes are seconds since epoch
-            // other 12 are 0
-            let seconds_since_epoch = (SystemTime::now()
-                - std::time::Duration::from_secs(60 * 60 * 24 * 7))
+
+            // inserted in the past 7 days
+            let inserted_after_secs_since_epoch = (SystemTime::now()
+                - Duration::from_secs(60 * 60 * 24 * 7))
             .duration_since(UNIX_EPOCH)?
             .as_secs() as u32;
 
             doc! {
-                "_id": {
-                    // inserted in the past 7 days
+            "_id": {
+                    // first 4 bytes are seconds since epoch
+                    // other 12 are 0
                     "$gt": bson::oid::ObjectId::from_bytes([
-                        (seconds_since_epoch >> 24) as u8,
-                        (seconds_since_epoch >> 16) as u8,
-                        (seconds_since_epoch >> 8) as u8,
-                        seconds_since_epoch as u8,
+                        (inserted_after_secs_since_epoch >> 24) as u8,
+                        (inserted_after_secs_since_epoch >> 16) as u8,
+                        (inserted_after_secs_since_epoch >> 8) as u8,
+                        inserted_after_secs_since_epoch as u8,
                         0, 0, 0, 0, 0, 0, 0, 0
                     ])
                 }

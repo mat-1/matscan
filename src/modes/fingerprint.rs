@@ -26,9 +26,7 @@ pub async fn get_addrs_and_protocol_versions(
                     "$lt": bson::DateTime::from(SystemTime::now() - Duration::from_secs(60 * 60 * 24 * 7)),
                 }
             },
-            {
-                "fingerprint.activeMinecraft": { "$exists": false }
-            },
+            { "fingerprint.activeMinecraft": { "$exists": false } },
         ]
     };
 

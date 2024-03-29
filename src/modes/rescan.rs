@@ -34,7 +34,6 @@ pub async fn get_ranges(
 
     let mut filter = doc! {
         "timestamp": {
-            // up to 2 hours ago
             "$gt": bson::DateTime::from(SystemTime::now() - Duration::from_secs(last_ping_ago_max_secs)),
             "$lt": bson::DateTime::from(SystemTime::now() - Duration::from_secs(rescan_every_secs))
         }
