@@ -60,6 +60,7 @@ pub enum ScanMode {
     Rescan7days,
     Rescan30days,
     Rescan365days,
+    RescanOlderThan365days,
 }
 
 pub struct ModePicker {
@@ -245,6 +246,18 @@ impl ScanMode {
                     60 * 60 * 24 * 30,
                     None,
                     60 * 60 * 24 * 365,
+                    Some(500_000),
+                    Some(Sort::Random),
+                )
+                .await
+            }
+            ScanMode::RescanOlderThan365days => {
+                rescan::get_ranges(
+                    database,
+                    &Default::default(),
+                    60 * 60 * 24 * 365,
+                    None,
+                    60 * 60 * 24 * 365 * 10,
                     Some(500_000),
                     Some(Sort::Random),
                 )

@@ -12,7 +12,7 @@ azalea-chat = { git = "https://github.com/mat-1/azalea", default-features = fals
 default-net = "0.22.0"
 dotenv = "0.15.0"
 libc = "0.2.153"
-perfect_rand = "0.1.5"
+perfect_rand = "0.2.0"
 pnet = "0.34.0"
 pnet_macros = "0.34.0"
 pnet_macros_support = "0.34.0"
