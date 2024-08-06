@@ -177,13 +177,10 @@ impl ProcessableProtocol for protocols::Minecraft {
                         // check that there were no anonymous players before
                         let servers_coll = database.servers_coll();
                         let current_data = servers_coll
-                            .find_one(
-                                doc! {
-                                    "addr": u32::from(*target.ip()),
-                                    "port": target.port() as u32
-                                },
-                                None,
-                            )
+                            .find_one(doc! {
+                                "addr": u32::from(*target.ip()),
+                                "port": target.port() as u32
+                            })
                             .await
                             .unwrap_or_default()
                             .unwrap_or_default();

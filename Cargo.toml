@@ -6,35 +6,35 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bson = "2.9.0"
-anyhow = "1.0.81"
+bson = "2.11.0"
+anyhow = "1.0.86"
 azalea-chat = { git = "https://github.com/mat-1/azalea", default-features = false, rev = "1b6e0244606cf7917e68918d32928550aabf85b0" }
 default-net = "0.22.0"
 dotenv = "0.15.0"
-libc = "0.2.153"
+libc = "0.2.155"
 perfect_rand = "0.2.0"
-pnet = "0.34.0"
-pnet_macros = "0.34.0"
-pnet_macros_support = "0.34.0"
+pnet = "0.35.0"
+pnet_macros = "0.35.0"
+pnet_macros_support = "0.35.0"
 rand = "0.8.5"
-regex = "1.10.3"
-serde = "1.0.197"
-serde_json = "1.0.114"
-tokio = { version = "1.36.0", features = ["rt"] }
+regex = "1.10.6"
+serde = "1.0.204"
+serde_json = "1.0.122"
+tokio = { version = "1.39.2", features = ["rt"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 futures-util = "0.3.30"
 lru-cache = "0.1.2"
-toml = "0.8.11"
-reqwest = { version = "0.11.26", default-features = false, features = [
+toml = "0.8.19"
+reqwest = { version = "0.12.5", default-features = false, features = [
     "json",
     "rustls-tls",
 ] }
-parking_lot = "0.12.1"
+parking_lot = "0.12.3"
 enum-utils = "0.1.2"
-flate2 = "1.0.28"
-async-trait = "0.1.77"
-mongodb = "2.8.1"
+flate2 = "1.0.31"
+async-trait = "0.1.81"
+mongodb = "3.0.1"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

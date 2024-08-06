@@ -1,5 +1,3 @@
-#![feature(lazy_cell)]
-
 pub mod asns;
 pub mod config;
 pub mod database;

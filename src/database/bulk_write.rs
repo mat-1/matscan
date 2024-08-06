@@ -94,7 +94,7 @@ impl<M: Send + Sync> CollectionExt for mongodb::Collection<M> {
         if let Some(ref write_concern) = self.write_concern() {
             command.insert("writeConcern", to_bson(write_concern)?);
         }
-        let res = db.run_command(command, None).await?;
+        let res = db.run_command(command).await?;
 
         Ok(bson::from_document(res)?)
     }

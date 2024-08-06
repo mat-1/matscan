@@ -5,7 +5,6 @@ use std::{
 
 use bson::{doc, Document};
 use futures_util::StreamExt;
-use mongodb::options::AggregateOptions;
 use serde::Deserialize;
 use tracing::warn;
 
@@ -76,10 +75,8 @@ pub async fn get_ranges(
 
     let mut cursor = database
         .servers_coll()
-        .aggregate(
-            pipeline,
-            AggregateOptions::builder().batch_size(2000).build(),
-        )
+        .aggregate(pipeline)
+        .batch_size(2000)
         .await
         .unwrap();
 
@@ -100,13 +97,10 @@ pub async fn get_ranges(
                 .client
                 .database("mcscanner")
                 .collection::<bson::Document>("servers")
-                .delete_many(
-                    doc! {
-                        "addr": u32::from(addr),
-                        "port": { "$ne": 25565 }
-                    },
-                    None,
-                )
+                .delete_many(doc! {
+                    "addr": u32::from(addr),
+                    "port": { "$ne": 25565 }
+                })
                 .await?;
             // this doesn't actually remove it from the bad_ips database, it just makes it
             // so we don't delete twice

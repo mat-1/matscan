@@ -5,7 +5,6 @@ use std::{
 
 use bson::{doc, Document};
 use futures_util::StreamExt;
-use mongodb::options::AggregateOptions;
 
 use crate::database::{self, Database};
 
@@ -40,10 +39,8 @@ pub async fn get_addrs_and_protocol_versions(
 
     let mut cursor = database
         .servers_coll()
-        .aggregate(
-            pipeline,
-            AggregateOptions::builder().batch_size(2000).build(),
-        )
+        .aggregate(pipeline)
+        .batch_size(2000)
         .await
         .unwrap();
 

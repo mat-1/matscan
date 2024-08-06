@@ -12,7 +12,7 @@ use futures_util::{stream::StreamExt, TryStreamExt};
 use lru_cache::LruCache;
 use mongodb::{
     bson::doc,
-    options::{ClientOptions, FindOptions, Hint, ResolverConfig, UpdateOptions},
+    options::{ClientOptions, Hint},
     Client, Collection,
 };
 use parking_lot::Mutex;
@@ -42,16 +42,14 @@ pub struct CachedIpHash {
 
 impl Database {
     pub async fn connect(mongodb_uri: &str) -> anyhow::Result<Self> {
-        let client_options =
-            ClientOptions::parse_with_resolver_config(mongodb_uri, ResolverConfig::cloudflare())
-                .await?;
+        let client_options = ClientOptions::parse(mongodb_uri).await?;
 
         let client = Client::with_options(client_options)?;
 
         // ping the database to make sure it's up
         client
             .database("mcscanner")
-            .run_command(doc! {"ping": 1}, None)
+            .run_command(doc! {"ping": 1})
             .await?;
 
         // download bad ips
@@ -59,7 +57,7 @@ impl Database {
         let mut cursor = client
             .database("mcscanner")
             .collection::<Document>("bad_servers")
-            .find(None, None)
+            .find(doc! {})
             .await
             .expect("bad servers collection must exist");
         while let Some(Ok(doc)) = cursor.next().await {
@@ -110,7 +108,6 @@ impl Database {
                     doc! {"$project": {"playerCount": {"$size": {"$objectToArray": "$players"}}, "players": "$players"}},
                     doc! {"$match": {"playerCount": {"$gt": 1000}}},
                 ],
-                None,
             )
             .await
             .expect("servers collection must exist");
@@ -123,7 +120,6 @@ impl Database {
                 .update_one(
                     doc! {"_id": doc.get_object_id("_id").expect("_id must be present")},
                     update,
-                    None,
                 )
                 .await
                 .expect("updating must not fail");
@@ -163,7 +159,6 @@ impl Database {
                 .update_one(
                     doc! {"_id": doc.get_object_id("_id").expect("_id must be present")},
                     update,
-                    None,
                 )
                 .await
                 .expect("updating must not fail");
@@ -191,9 +186,9 @@ impl Database {
                         "timestamp": Bson::DateTime(bson::DateTime::from_system_time(SystemTime::now())),
                     }
                 },
-                // upsert in case the server was already there
-                UpdateOptions::builder().upsert(true).build(),
             )
+            // upsert in case the server was already there
+            .upsert(true)
             .await?;
 
         // delete all servers with this ip that aren't on 25565
@@ -201,13 +196,10 @@ impl Database {
             .client
             .database("mcscanner")
             .collection::<Document>("servers")
-            .delete_many(
-                doc! {
-                    "addr": u32::from(addr),
-                    "port": { "$ne": 25565 }
-                },
-                None,
-            )
+            .delete_many(doc! {
+                "addr": u32::from(addr),
+                "port": { "$ne": 25565 }
+            })
             .await?;
 
         println!("deleted {} bad servers", r.deleted_count);
@@ -314,16 +306,10 @@ pub async fn collect_all_servers(
 
     let mut cursor = database
         .servers_coll()
-        .find(
-            doc_filter,
-            FindOptions::builder()
-                // prefer newest first
-                // .sort(doc! {"_id": 1})
-                .projection(doc! {"addr": 1, "port": 1, "_id": 0})
-                .batch_size(2000)
-                .hint(Some(Hint::Keys(doc! {"addr": 1, "port": 1})))
-                .build(),
-        )
+        .find(doc_filter)
+        .projection(doc! {"addr": 1, "port": 1, "_id": 0})
+        .batch_size(2000)
+        .hint(Hint::Keys(doc! {"addr": 1, "port": 1}))
         .await?;
 
     let mut servers = Vec::new();
