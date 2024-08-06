@@ -6,9 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+azalea-chat = { git = "https://github.com/azalea-rs/azalea", default-features = false }
 bson = "2.11.0"
 anyhow = "1.0.86"
-azalea-chat = { git = "https://github.com/mat-1/azalea", default-features = false, rev = "1b6e0244606cf7917e68918d32928550aabf85b0" }
 default-net = "0.22.0"
 dotenv = "0.15.0"
 libc = "0.2.155"
