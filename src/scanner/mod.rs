@@ -19,7 +19,7 @@ use parking_lot::{Mutex, RwLock};
 use perfect_rand::PerfectRng;
 use pnet::packet::tcp::TcpFlags;
 use serde::Deserialize;
-use tracing::{debug, trace, warn};
+use tracing::trace;
 
 use crate::{
     net::tcp::{StatelessTcp, StatelessTcpWriteHalf},
@@ -66,7 +66,7 @@ impl Scanner {
         let mut to_delete = Vec::new();
         for (addr, conn) in &mut self.conns {
             if now - conn.started > ping_timeout {
-                debug!("dropping connection to {addr} because it took too long");
+                trace!("dropping connection to {addr} because it took too long");
                 // if it took longer than 60 seconds to reply, then drop the connection
                 to_delete.push(*addr)
             }
@@ -139,7 +139,7 @@ impl ScannerReceiver {
                         }
 
                         if conn.data.is_empty() {
-                            debug!("FIN with no data :( {}:{}", ipv4.source, tcp.source);
+                            trace!("FIN with no data :( {}:{}", ipv4.source, tcp.source);
                             // if there was no data then parse that as a response
                             if let Ok(data) = protocol.parse_response(Response::Data(vec![])) {
                                 self.shared_process_data
@@ -148,13 +148,14 @@ impl ScannerReceiver {
                                     .push_back((address, data));
                             }
                         } else {
-                            debug!("FIN {}:{}", ipv4.source, tcp.source);
+                            trace!("FIN {}:{}", ipv4.source, tcp.source);
                             self.scanner.conns.borrow_mut().remove(&address);
                         }
                     } else {
-                        debug!(
+                        trace!(
                             "FIN with no connection, probably already forgotten by us {}:{}",
-                            ipv4.source, tcp.source
+                            ipv4.source,
+                            tcp.source
                         );
                         self.scanner.client.write.send_ack(
                             address,
@@ -177,7 +178,7 @@ impl ScannerReceiver {
                     let original_cookie = cookie(&address, self.scanner.seed);
                     let expected_ack = original_cookie + 1;
                     if ack_number != expected_ack {
-                        warn!("cookie mismatch for {address} (expected {expected_ack}, got {ack_number})");
+                        trace!("cookie mismatch for {address} (expected {expected_ack}, got {ack_number})");
                         continue;
                     }
 
@@ -220,7 +221,7 @@ impl ScannerReceiver {
                     // println!("ACK {}:{}", ipv4.source, tcp.source);
 
                     // cookie +packet size + 1
-                    let ack_number = tcp.acknowledgement;
+                    let actual_ack = tcp.acknowledgement;
 
                     if tcp.payload.is_empty() {
                         // just an ack and not data
@@ -231,26 +232,26 @@ impl ScannerReceiver {
                     let (ping_response, is_tracked) = if let Some(conn) =
                         self.scanner.conns.get_mut(&address)
                     {
-                        if tcp.sequence != conn.remote_seq {
-                            let difference = tcp.sequence as i64 - conn.remote_seq as i64;
-                            warn!(
-                                "Got wrong seq number {}! expected {} (difference = {difference}). This is probably because of a re-transmission.",
-                                tcp.sequence,
-                                conn.remote_seq
+                        let actual_seq = tcp.sequence;
+                        let expected_seq = conn.remote_seq;
+                        if actual_seq != conn.remote_seq {
+                            let difference = actual_seq as i64 - expected_seq as i64;
+                            trace!(
+                                "Got wrong seq number {actual_seq}! expected {expected_seq} (difference = {difference}). This is probably because of a re-transmission.",
                             );
 
                             self.scanner.client.write.send_ack(
                                 address,
                                 tcp.destination,
-                                ack_number,
-                                conn.remote_seq,
+                                actual_ack,
+                                expected_seq,
                             );
 
                             continue;
                         }
                         // this means it's adding more data to this connection
                         conn.data.extend(tcp.payload.clone());
-                        conn.remote_seq = tcp.sequence + tcp.payload.len() as u32;
+                        conn.remote_seq = actual_seq + tcp.payload.len() as u32;
                         (
                             protocol.parse_response(Response::Data(conn.data.clone())),
                             true,
@@ -264,8 +265,8 @@ impl ScannerReceiver {
                         let cookie_offset = (packet_size + 1) as u32;
 
                         let expected_ack = original_cookie.wrapping_add(cookie_offset);
-                        if ack_number != expected_ack {
-                            warn!("cookie mismatch when reading data for {address} (expected {expected_ack}, got {ack_number}, initial was {original_cookie})");
+                        if actual_ack != expected_ack {
+                            trace!("cookie mismatch when reading data for {address} (expected {expected_ack}, got {actual_ack}, initial was {original_cookie})");
                             continue;
                         }
 
@@ -293,7 +294,7 @@ impl ScannerReceiver {
                                     },
                                 );
                                 connections_started += 1;
-                                debug!("connection #{connections_started} started");
+                                trace!("connection #{connections_started} started");
                             }
 
                             let conn = self.scanner.conns.get(&address).unwrap();
@@ -306,19 +307,19 @@ impl ScannerReceiver {
                             self.scanner.client.write.send_ack(
                                 address,
                                 tcp.destination,
-                                ack_number,
+                                actual_ack,
                                 conn.remote_seq,
                             );
                             self.scanner.client.write.send_fin(
                                 address,
                                 tcp.destination,
-                                ack_number,
+                                actual_ack,
                                 conn.remote_seq,
                             );
 
                             if !is_tracked {
                                 connections_started += 1;
-                                debug!("connection #{connections_started} started and ended immediately");
+                                trace!("connection #{connections_started} started and ended immediately");
                             }
                         }
                         Err(e) => {
@@ -341,7 +342,7 @@ impl ScannerReceiver {
                                             },
                                         );
                                         connections_started += 1;
-                                        debug!("connection #{connections_started} started");
+                                        trace!("connection #{connections_started} started");
                                     }
 
                                     let conn = self.scanner.conns.get(&address).unwrap();
@@ -351,7 +352,7 @@ impl ScannerReceiver {
                                     self.scanner.client.write.send_ack(
                                         address,
                                         tcp.destination,
-                                        ack_number,
+                                        actual_ack,
                                         conn.remote_seq,
                                     );
                                 }

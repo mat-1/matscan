@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, VecDeque},
+    env, fs, path,
     str::FromStr,
     sync::{atomic::AtomicBool, Arc},
     thread,
@@ -8,6 +9,7 @@ use std::{
 
 use dotenv::dotenv;
 use parking_lot::{Mutex, RwLock};
+use tracing::{info, level_filters::LevelFilter};
 use tracing_subscriber::{prelude::*, EnvFilter};
 
 use matscan::{
@@ -38,20 +40,18 @@ async fn main() -> anyhow::Result<()> {
     dotenv().ok();
     println!("dotenv");
 
-    tracing_subscriber::registry()
-        .with(tracing_subscriber::fmt::layer())
-        .with(EnvFilter::from_default_env())
-        .init();
-
     // first command line argument is the location of the config file
-    let config_file = std::env::args().nth(1).unwrap_or("config.toml".to_string());
+    let config_file = env::args().nth(1).unwrap_or("config.toml".to_string());
 
-    let config_file_path = std::path::Path::new(&config_file).canonicalize()?;
+    let config_file_path = path::Path::new(&config_file).canonicalize()?;
     println!(
         "parsing config at {}",
         config_file_path.as_os_str().to_string_lossy()
     );
-    let config: Config = toml::from_str(&std::fs::read_to_string(config_file_path)?)?;
+    let config: Config = toml::from_str(&fs::read_to_string(config_file_path)?)?;
+
+    init_tracing(&config);
+    info!("Logging initialized");
 
     println!("parsing exclude file");
     let exclude_ranges = exclude::parse_file("exclude.conf")?;
@@ -147,11 +147,12 @@ async fn main() -> anyhow::Result<()> {
 
     loop {
         let start_time = Instant::now();
-        i += 1;
 
         let mut ranges = ScanRanges::new();
 
         let mode_category = mode_categories[i % mode_categories.len()];
+        i += 1;
+
         // if the mode is none then that means it's a special mode (either rescanning or
         // fingerprinting)
         let mut mode: Option<ScanMode> = None;
@@ -304,6 +305,25 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+fn init_tracing(config: &Config) {
+    let mut layers = Vec::new();
+
+    layers.push(EnvFilter::from_default_env().boxed());
+
+    if let Some(logging_dir) = &config.logging_dir {
+        let file_appender = tracing_appender::rolling::daily(logging_dir, "matscan.log");
+
+        layers.push(
+            tracing_subscriber::fmt::layer()
+                .with_writer(file_appender)
+                .with_filter(LevelFilter::DEBUG)
+                .boxed(),
+        );
+    }
+
+    tracing_subscriber::registry().with(layers).init();
+}
+
 /// Print the results of the scan, reset the counters, and update modes.json.
 fn process_results(
     shared_process_data: &mut SharedData,
@@ -323,11 +343,15 @@ fn process_results(
     let end_time = Instant::now();
     let elapsed = end_time - start_time;
 
+    let elapsed_secs = elapsed.as_secs();
+
     if let Some(mode) = mode {
         let added_per_minute = ((total_new + revived) as f64 / elapsed.as_secs_f64()) * 60.0;
         println!(
-            "ok finished adding to db after {BOLD}{}{RESET} seconds (mode: {BOLD}{mode:?}{RESET}, {YELLOW}updated {BOLD}{results}{RESET}{YELLOW}/{packets_sent}{RESET}, {GREEN}revived {BOLD}{revived}{RESET}, {BLUE}added {total_new}{RESET}, {BOLD}{added_per_minute:.2}{RESET} new per minute)",
-            elapsed.as_secs()
+            "ok finished adding to db after {BOLD}{elapsed_secs}{RESET} seconds (mode: {BOLD}{mode:?}{RESET}, {YELLOW}updated {BOLD}{results}{RESET}{YELLOW}/{packets_sent}{RESET}, {GREEN}revived {BOLD}{revived}{RESET}, {BLUE}added {total_new}{RESET}, {BOLD}{added_per_minute:.2}{RESET} new per minute)",
+        );
+        info!(
+            "Finished adding to database after {elapsed_secs} seconds. Mode: {mode:?}, updated {results}/{packets_sent}, revived {revived}, added {total_new}, {added_per_minute:.2} new per minute",
         );
 
         // prioritize finding servers on the default port since they're more likely to
@@ -350,11 +374,13 @@ fn process_results(
         println!("got score {score} from {unnormalized_score} = {total_new_score} + {revived_score} + {total_new_on_default_port_score}");
         mode_picker.update_mode(mode, score);
     } else {
+        let percent_replied = (results as f64 / packets_sent as f64) * 100.0;
         println!(
-            "ok finished rescanning after {BOLD}{}{RESET} seconds ({YELLOW}updated {BOLD}{results}{RESET}{YELLOW}/{packets_sent}{RESET}, {GREEN}revived {BOLD}{revived}{RESET}, {BOLD}{percent:.2}%{RESET} replied)",
-            elapsed.as_secs(),
-            percent = (results as f64 / packets_sent as f64) * 100.0
+            "ok finished rescanning after {BOLD}{elapsed_secs}{RESET} seconds ({YELLOW}updated {BOLD}{results}{RESET}{YELLOW}/{packets_sent}{RESET}, {GREEN}revived {BOLD}{revived}{RESET}, {BOLD}{percent_replied:.2}%{RESET} replied)",
         );
+        info!(
+            "Finished rescanning after {elapsed_secs} seconds. Sent {packets_sent} SYNs, updated {results}, revived {revived}, {percent_replied:.2}% replied",
+        )
     }
 }
 

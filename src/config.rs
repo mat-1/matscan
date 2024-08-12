@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use serde::Deserialize;
 
 use crate::scanner::SourcePort;
@@ -63,6 +65,12 @@ pub struct Config {
 
     #[serde(default)]
     pub fingerprinting: FingerprintingConfig,
+
+    /// The directory where the rotating matscan.log files should be written to.
+    /// None to disable logging to a file. Note that these logs aren't the same
+    /// as the ones that are shown in stdout.
+    #[serde(default)]
+    pub logging_dir: Option<PathBuf>,
 }
 
 #[derive(Deserialize, Clone)]
