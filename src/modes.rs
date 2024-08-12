@@ -113,7 +113,11 @@ impl ModePicker {
 
         // if they're all 0, pick Slash0.
         // this mostly fixes a bug where some modes panic when the database is empty.
-        if self.modes.values().all(|&count| count == 0) {
+        if self
+            .modes
+            .values()
+            .all(|&count| count == 0 || count == 1_000_000)
+        {
             return ScanMode::Slash0;
         }
 
