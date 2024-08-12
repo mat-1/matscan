@@ -94,6 +94,7 @@ impl ScanRanges {
         };
         let Some(mut exclude_range) = exclude_ranges.next() else {
             ranges.push(scan_range);
+            self.ranges = ranges;
             return vec![];
         };
 
@@ -266,6 +267,7 @@ impl Ipv4Range {
     }
 }
 
+#[derive(Default)]
 pub struct Ipv4Ranges {
     ranges: Vec<Ipv4Range>,
 }
