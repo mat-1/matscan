@@ -70,6 +70,7 @@ pub struct ModePicker {
     modes: HashMap<ScanMode, usize>,
 }
 
+const DEFAULT_FOUND: usize = 1_000_000;
 impl Default for ModePicker {
     fn default() -> Self {
         // make a hashmap of { mode: servers fount last scan } and default to 2^16
@@ -94,7 +95,6 @@ impl Default for ModePicker {
             })
             .collect::<HashMap<_, _>>();
 
-        const DEFAULT_FOUND: usize = 1_000_000;
         for mode in ScanMode::iter() {
             modes.entry(mode).or_insert(DEFAULT_FOUND);
         }
@@ -116,7 +116,7 @@ impl ModePicker {
         if self
             .modes
             .values()
-            .all(|&count| count == 0 || count == 1_000_000)
+            .all(|&count| count == 0 || count == DEFAULT_FOUND)
         {
             return ScanMode::Slash0;
         }
