@@ -93,7 +93,7 @@ impl ScanRanges {
             return vec![];
         };
         let Some(mut exclude_range) = exclude_ranges.next() else {
-            ranges.extend_from_slice(&self.ranges);
+            ranges.extend_from_slice(&scan_ranges);
             self.ranges = ranges;
             return vec![];
         };
