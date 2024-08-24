@@ -313,7 +313,7 @@ fn clean_response_data(
             .and_then(|p| p.get("sample"))
             .and_then(|p| p.as_array())
             // only take the first 100 players in case the sample is massive
-            .map(|s| s.into_iter().take(100).collect::<Vec<_>>())
+            .map(|s| s.iter().take(100).collect::<Vec<_>>())
             .unwrap_or_default()
         {
             let player = player.as_document()?;
