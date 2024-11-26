@@ -317,6 +317,17 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_count_addresses_slash0() {
+        let mut ranges = ScanRanges::new();
+        ranges.extend(vec![ScanRange::single_port(
+            Ipv4Addr::new(0, 0, 0, 0),
+            Ipv4Addr::new(255, 255, 255, 255),
+            0,
+        )]);
+        assert_eq!(ranges.count(), 2usize.pow(32));
+    }
+
+    #[test]
     fn test_subtract_center() {
         let mut ranges = ScanRanges::new();
 

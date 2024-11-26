@@ -26,6 +26,7 @@ pub mod slash24_few_ports;
 pub mod slash24_few_ports_new;
 pub mod slash24_new;
 pub mod slash32_all_ports;
+pub mod slash32_all_ports_365d;
 pub mod slash32_all_ports_new;
 pub mod slash32_range_ports;
 pub mod slash32_range_ports_new;
@@ -52,6 +53,7 @@ pub enum ScanMode {
     Slash24FewPortsNew,
     Slash24New,
     Slash32AllPorts,
+    Slash32AllPorts365d,
     Slash32AllPortsNew,
     Slash32RangePorts,
     Slash32RangePortsNew,
@@ -203,6 +205,7 @@ impl ScanMode {
             ScanMode::Slash24New => slash24_new::get_ranges(database).await,
             ScanMode::Slash24 => slash24::get_ranges(database).await,
             ScanMode::Slash32AllPorts => slash32_all_ports::get_ranges(database).await,
+            ScanMode::Slash32AllPorts365d => slash32_all_ports_365d::get_ranges(database).await,
             ScanMode::Slash32AllPortsNew => slash32_all_ports_new::get_ranges(database).await,
             ScanMode::Slash32RangePorts => slash32_range_ports::get_ranges(database).await,
             ScanMode::Slash32RangePortsNew => slash32_range_ports_new::get_ranges(database).await,
