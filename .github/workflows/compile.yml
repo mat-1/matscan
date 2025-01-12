@@ -31,7 +31,7 @@ jobs:
       - name: Build
         run: cargo build --release
 
-      - uses: actions/upload-artifact
+      - uses: actions/upload-artifact@v3
         name: Upload a Build Artifact
         with:
           name: matscan
