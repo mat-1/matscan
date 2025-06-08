@@ -281,6 +281,10 @@ fn clean_response_data(
         .unwrap_or_default();
 
     if description.contains("Craftserve.pl - wydajny hosting Minecraft!")
+        || description.contains("Pay for the server on https://craftserve.com to be able to log in.")
+        || description.contains("Craftserve: Error finding route. Please contact support.")
+        // commented out because all the servers that this shows up on are actually real
+        // || description.contains("Craftserve - AntyBot! Verify yourself on https://csrv.gg (open the website)")
         || description.contains("Ochrona DDoS: Przekroczono limit polaczen.")
         || description.contains("¨ |  ")
         || description.contains("Start the server at FalixNodes.net/start")
