@@ -19,9 +19,10 @@ use parking_lot::{Mutex, RwLock};
 use perfect_rand::PerfectRng;
 use pnet::packet::tcp::TcpFlags;
 use serde::Deserialize;
-use tracing::trace;
+use tracing::{trace, warn};
 
 use crate::{
+    config::Config,
     net::tcp::{StatelessTcp, StatelessTcpWriteHalf},
     processing::SharedData,
     scanner::protocols::{ParseResponseError, Response},
@@ -44,10 +45,10 @@ pub struct ActiveFingerprintingData {
 }
 
 impl Scanner {
-    pub fn new(source_port: SourcePort) -> Self {
+    pub fn new(config: &Config) -> Self {
         let seed = rand::random::<u64>();
 
-        let mut client = StatelessTcp::new(source_port);
+        let mut client = StatelessTcp::new(config);
 
         client.write.fingerprint.mss = client.write.mtu();
         if client.write.has_ethernet_header() {
@@ -82,6 +83,8 @@ pub struct ScannerReceiver {
     pub shared_process_data: Arc<Mutex<SharedData>>,
     pub scanner: Scanner,
     pub has_ended: Arc<AtomicBool>,
+
+    pub simulate_rx_loss: f32,
 }
 
 impl ScannerReceiver {
@@ -102,6 +105,11 @@ impl ScannerReceiver {
             while let Some((ipv4, tcp)) = self.scanner.client.read.recv() {
                 let address = SocketAddrV4::new(ipv4.source, tcp.source);
 
+                if self.simulate_rx_loss > 0.0 && rand::random::<f32>() < self.simulate_rx_loss {
+                    warn!("simulated rx loss for {address}");
+                    continue;
+                }
+
                 if tcp.flags & TcpFlags::RST != 0 {
                     // RST
                     trace!("RST :( {}", address);
@@ -121,13 +129,6 @@ impl ScannerReceiver {
                     // FIN
 
                     if let Some(conn) = self.scanner.conns.get_mut(&address) {
-                        self.scanner.client.write.send_ack(
-                            address,
-                            tcp.destination,
-                            conn.local_seq,
-                            tcp.sequence + 1,
-                        );
-
                         if !conn.fin_sent {
                             self.scanner.client.write.send_fin(
                                 address,
@@ -136,6 +137,13 @@ impl ScannerReceiver {
                                 tcp.sequence + 1,
                             );
                             conn.fin_sent = true;
+                        } else {
+                            self.scanner.client.write.send_ack(
+                                address,
+                                tcp.destination,
+                                conn.local_seq,
+                                tcp.sequence + 1,
+                            );
                         }
 
                         if conn.data.is_empty() {
@@ -182,12 +190,15 @@ impl ScannerReceiver {
                         continue;
                     }
 
-                    self.scanner.client.write.send_ack(
-                        address,
-                        tcp.destination,
-                        tcp.acknowledgement,
-                        tcp.sequence + 1,
-                    );
+                    // this is optional, real tcp clients usually do send it but it doesn't appear
+                    // to be necessary. it also causes problems if this packet gets sent and the
+                    // next one is dropped.
+                    // self.scanner.client.write.send_ack(
+                    //     address,
+                    //     tcp.destination,
+                    //     tcp.acknowledgement,
+                    //     tcp.sequence.wrapping_add(1),
+                    // );
 
                     let payload = protocol.payload(address);
                     if payload.is_empty() {
@@ -196,7 +207,7 @@ impl ScannerReceiver {
                             address,
                             tcp.destination,
                             tcp.acknowledgement,
-                            tcp.sequence + 1,
+                            tcp.sequence.wrapping_add(1),
                         );
                         continue;
                     }
@@ -204,7 +215,7 @@ impl ScannerReceiver {
                         address,
                         tcp.destination,
                         tcp.acknowledgement,
-                        tcp.sequence + 1,
+                        tcp.sequence.wrapping_add(1),
                         &payload,
                     );
 
@@ -235,17 +246,27 @@ impl ScannerReceiver {
                         let actual_seq = tcp.sequence;
                         let expected_seq = conn.remote_seq;
                         if actual_seq != conn.remote_seq {
-                            let difference = actual_seq as i64 - expected_seq as i64;
+                            let difference = (actual_seq as i64).wrapping_sub(expected_seq as i64);
                             trace!(
                                 "Got wrong seq number {actual_seq}! expected {expected_seq} (difference = {difference}). This is probably because of a re-transmission.",
                             );
 
-                            self.scanner.client.write.send_ack(
-                                address,
-                                tcp.destination,
-                                actual_ack,
-                                expected_seq,
-                            );
+                            if conn.fin_sent {
+                                // our FIN might've been dropped
+                                self.scanner.client.write.send_fin(
+                                    address,
+                                    tcp.destination,
+                                    actual_ack,
+                                    expected_seq,
+                                );
+                            } else {
+                                self.scanner.client.write.send_ack(
+                                    address,
+                                    tcp.destination,
+                                    actual_ack,
+                                    expected_seq,
+                                );
+                            }
 
                             continue;
                         }
@@ -290,11 +311,16 @@ impl ScannerReceiver {
                                             .wrapping_add(tcp.payload.len() as u32),
                                         local_seq: tcp.acknowledgement,
                                         started: Instant::now(),
-                                        fin_sent: false,
+                                        // we're about to send a fin
+                                        fin_sent: true,
                                     },
                                 );
                                 connections_started += 1;
-                                trace!("connection #{connections_started} started");
+                                trace!(
+                                    "connection #{connections_started} started and ended immediately (with {}:{})",
+                                    ipv4.source,
+                                    tcp.source
+                                );
                             }
 
                             let conn = self.scanner.conns.get(&address).unwrap();
@@ -304,23 +330,19 @@ impl ScannerReceiver {
                                 .queue
                                 .push_back((address, data));
 
-                            self.scanner.client.write.send_ack(
-                                address,
-                                tcp.destination,
-                                actual_ack,
-                                conn.remote_seq,
-                            );
+                            // next line is unnecessary and causes issues when packets are dropped
+                            // self.scanner.client.write.send_ack(
+                            //     address,
+                            //     tcp.destination,
+                            //     actual_ack,
+                            //     conn.remote_seq,
+                            // );
                             self.scanner.client.write.send_fin(
                                 address,
                                 tcp.destination,
                                 actual_ack,
                                 conn.remote_seq,
                             );
-
-                            if !is_tracked {
-                                connections_started += 1;
-                                trace!("connection #{connections_started} started and ended immediately");
-                            }
                         }
                         Err(e) => {
                             match e {
@@ -342,7 +364,7 @@ impl ScannerReceiver {
                                             },
                                         );
                                         connections_started += 1;
-                                        trace!("connection #{connections_started} started");
+                                        trace!("connection #{connections_started} started (with {}:{})", ipv4.source, tcp.source);
                                     }
 
                                     let conn = self.scanner.conns.get(&address).unwrap();

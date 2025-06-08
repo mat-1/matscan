@@ -294,6 +294,8 @@ fn clean_response_data(
         // play.devlencio.net requested exclusion because Velocity logs errors
         // on ping, and by MOTD due to a dynamic IP.
         || description.contains("The hub for all Devlencio servers")
+        // mc.playersworld.ru requested exclusion
+        || description.contains("Players World — равноправие")
     {
         return None;
     }

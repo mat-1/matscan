@@ -2,7 +2,7 @@ use std::{collections::HashMap, str::FromStr};
 
 use rand::{distributions::WeightedIndex, prelude::*};
 
-use crate::{database::Database, scanner::targets::ScanRange};
+use crate::{config::Config, database::Database, scanner::targets::ScanRange};
 
 use self::rescan::Sort;
 
@@ -169,7 +169,22 @@ impl ModePicker {
 }
 
 impl ScanMode {
-    pub async fn get_ranges(&self, database: &mut Database) -> anyhow::Result<Vec<ScanRange>> {
+    pub async fn get_ranges(
+        &self,
+        database: &mut Database,
+        config: &Config,
+    ) -> anyhow::Result<Vec<ScanRange>> {
+        if let Some(only_scan_addr) = config.debug.only_scan_addr {
+            let ip = only_scan_addr.ip().clone();
+            let port = only_scan_addr.port();
+            return Ok(vec![ScanRange {
+                addr_start: ip,
+                addr_end: ip,
+                port_start: port,
+                port_end: port,
+            }]);
+        }
+
         match self {
             ScanMode::Slash0FewPorts => slash0_few_ports::get_ranges(database).await,
             ScanMode::Slash0 => slash0::get_ranges(database).await,

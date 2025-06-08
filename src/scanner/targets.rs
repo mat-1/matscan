@@ -89,12 +89,12 @@ impl ScanRanges {
         let mut scan_ranges = mem::take(&mut self.ranges).into_iter();
         let mut exclude_ranges = exclude_ranges.ranges.iter();
 
-        let Some(mut scan_range) = scan_ranges.next() else {
-            return vec![];
-        };
         let Some(mut exclude_range) = exclude_ranges.next() else {
             ranges.extend(scan_ranges);
             self.ranges = ranges;
+            return vec![];
+        };
+        let Some(mut scan_range) = scan_ranges.next() else {
             return vec![];
         };
 

@@ -54,7 +54,7 @@ async fn main() -> anyhow::Result<()> {
     info!("Logging initialized");
 
     println!("parsing exclude file");
-    let exclude_ranges = exclude::parse_file("exclude.conf")?;
+    let mut exclude_ranges = exclude::parse_file("exclude.conf")?;
     println!(
         "excluding {} ips ({} ranges)",
         exclude_ranges.count(),
@@ -68,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let mut database = Database::connect(&config.mongodb_uri).await?;
-    let scanner = Scanner::new(config.source_port);
+    let scanner = Scanner::new(&config);
     let mut mode_picker = ModePicker::default();
 
     // the number of times we've done a scan, used for switching between different
@@ -99,6 +99,12 @@ async fn main() -> anyhow::Result<()> {
         mode_categories.push(ModeCategory::Fingerprint);
     }
 
+    if config.debug.only_scan_addr.is_some() {
+        info!("debug.only_scan_addr is set, setting only enabled mode category to Normal and ignoring exclude ranges");
+        mode_categories = vec![ModeCategory::Normal];
+        exclude_ranges = Ipv4Ranges::default();
+    }
+
     if mode_categories.is_empty() {
         panic!("Scanner, rescanner, and fingerprinting are all disabled in the config. You should probably at least enable scanner.");
     }
@@ -127,6 +133,7 @@ async fn main() -> anyhow::Result<()> {
         shared_process_data: shared_process_data.clone(),
         scanner,
         has_ended: has_ended.clone(),
+        simulate_rx_loss: config.debug.simulate_rx_loss,
     };
     let recv_loop_thread = thread::spawn(move || {
         receiver.recv_loop(Duration::from_secs(config.ping_timeout_secs.unwrap_or(60)))
@@ -135,7 +142,7 @@ async fn main() -> anyhow::Result<()> {
     let mut processing_task = ProcessingTask::new(shared_process_data.clone(), config.clone());
 
     // make sure the modes in config.scanner.modes are valid
-    let scan_modes = config.scanner.modes.map(|modes| {
+    let scan_modes = config.scanner.modes.as_ref().map(|modes| {
         modes
             .into_iter()
             .map(|mode| {
@@ -163,7 +170,7 @@ async fn main() -> anyhow::Result<()> {
                 println!("chosen mode: {chosen_mode:?}");
 
                 let get_ranges_start = Instant::now();
-                ranges.extend(chosen_mode.get_ranges(&mut database).await?);
+                ranges.extend(chosen_mode.get_ranges(&mut database, &config).await?);
                 let get_ranges_end = Instant::now();
                 println!("get_ranges took {:?}", get_ranges_end - get_ranges_start);
 
@@ -291,7 +298,7 @@ async fn main() -> anyhow::Result<()> {
             packets_sent,
         );
 
-        if config.exit_on_done {
+        if config.debug.exit_on_done {
             println!("exit_on_done is true, exiting");
             break;
         }
@@ -315,6 +322,7 @@ fn init_tracing(config: &Config) {
 
         layers.push(
             tracing_subscriber::fmt::layer()
+                .with_ansi(false)
                 .with_writer(file_appender)
                 .with_filter(LevelFilter::DEBUG)
                 .boxed(),

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{net::SocketAddrV4, path::PathBuf};
 
 use serde::Deserialize;
 
@@ -17,11 +17,6 @@ pub struct Config {
     /// Defaults to 10 seconds.
     #[serde(default)]
     pub sleep_secs: Option<u64>,
-
-    /// If true, the program will exit after the first scan. This is primarily
-    /// meant for for debugging purposes.
-    #[serde(default)]
-    pub exit_on_done: bool,
 
     /// The port that we send packets from. You **must** firewall it, otherwise
     /// your OS will drop connections immediately.
@@ -71,6 +66,9 @@ pub struct Config {
     /// as the ones that are shown in stdout.
     #[serde(default)]
     pub logging_dir: Option<PathBuf>,
+
+    #[serde(default)]
+    pub debug: DebugConfig,
 }
 
 #[derive(Deserialize, Clone)]
@@ -133,4 +131,24 @@ pub struct FingerprintingConfig {
     /// If this is false then passive fingerprinting is still done but it won't
     /// be able to gather as much information as active fingerprinting.
     pub enabled: bool,
+}
+
+#[derive(Deserialize, Default, Clone)]
+#[serde(deny_unknown_fields)]
+pub struct DebugConfig {
+    /// If true, the program will exit after the first scan.
+    #[serde(default)]
+    pub exit_on_done: bool,
+
+    /// Scanning will only send a ping to the given address.
+    ///
+    /// This also disables all other modes like rescanning and fingerprinting.
+    /// The exclude list is also ignored.
+    #[serde(default)]
+    pub only_scan_addr: Option<SocketAddrV4>,
+
+    #[serde(default)]
+    pub simulate_rx_loss: f32,
+    #[serde(default)]
+    pub simulate_tx_loss: f32,
 }

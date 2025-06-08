@@ -5,7 +5,7 @@ use std::{
 };
 
 use pnet::{
-    datalink::{self, Channel, Config, DataLinkReceiver, NetworkInterface},
+    datalink::{self, Channel, DataLinkReceiver, NetworkInterface},
     packet::{
         ethernet::EthernetPacket,
         ip::IpNextHeaderProtocols::{self},
@@ -15,9 +15,9 @@ use pnet::{
     },
     util::MacAddr,
 };
-use tracing::warn;
+use tracing::{trace, warn};
 
-use crate::{net::tcp_template::TemplatePacketRepr, scanner::SourcePort};
+use crate::{config::Config, net::tcp_template::TemplatePacketRepr, scanner::SourcePort};
 
 use super::{
     raw_sockets::RawSocket,
@@ -87,6 +87,8 @@ pub struct StatelessTcpWriteHalf {
     pub fingerprint: Fingerprint,
 
     template_syn_packet: TemplatePacket,
+
+    pub simulate_tx_loss: f32,
 }
 
 pub struct StatelessTcpReadHalf {
@@ -103,7 +105,7 @@ impl StatelessTcp {
     ///
     /// For the source port I usually do 61000 and then firewall it with
     /// `iptables -A INPUT -p tcp --dport 61000 -j DROP`
-    pub fn new(source_port: SourcePort) -> Self {
+    pub fn new(config: &Config) -> Self {
         let interface = get_interface();
         println!("interface: {:?}", interface);
 
@@ -118,7 +120,7 @@ impl StatelessTcp {
         #[cfg(not(feature = "benchmark"))]
         let (_tx, rx) = match datalink::channel(
             &interface,
-            Config {
+            datalink::Config {
                 read_timeout: Some(Duration::ZERO),
                 // read_timeout: Some(Duration::from_secs(1)),
                 ..Default::default()
@@ -152,7 +154,7 @@ impl StatelessTcp {
 
         let write_half = StatelessTcpWriteHalf {
             source_ip: interface_ipv4,
-            source_port,
+            source_port: config.source_port,
 
             gateway_mac,
             interface_mac,
@@ -177,11 +179,12 @@ impl StatelessTcp {
             }),
 
             fingerprint,
+            simulate_tx_loss: config.debug.simulate_tx_loss,
         };
 
         StatelessTcp {
             read: StatelessTcpReadHalf {
-                source_port,
+                source_port: config.source_port,
                 interface_mac,
                 #[cfg(not(feature = "benchmark"))]
                 rx,
@@ -300,6 +303,21 @@ impl StatelessTcpWriteHalf {
 
     pub fn send_tcp(&mut self, repr: PacketRepr) {
         let source_addr = SocketAddrV4::new(self.source_ip, repr.source_port);
+
+        if self.simulate_tx_loss > 0.0 && rand::random::<f32>() < self.simulate_tx_loss {
+            warn!(
+                "simulated tx loss, not sending packet to {}:{}",
+                repr.dest_addr, repr.dest_port
+            );
+            return;
+        }
+        trace!(
+            "sending packet to {}:{} with flags: {:?}",
+            repr.dest_addr,
+            repr.dest_port,
+            repr.flags
+        );
+
         let packet = build_tcp_packet(repr, self.gateway_mac, self.interface_mac, source_addr);
         #[cfg(not(feature = "benchmark"))]
         self.socket.send_blocking(&packet);
