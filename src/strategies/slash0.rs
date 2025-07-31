@@ -4,7 +4,7 @@ use crate::{database::Database, scanner::targets::ScanRange};
 
 /// Scan world on one port.
 ///
-/// Returns a Vec for consistency with the other modes, even though it will
+/// Returns a Vec for consistency with the other strategies, even though it will
 /// only ever contain one element.
 pub async fn get_ranges(_database: &mut Database) -> anyhow::Result<Vec<ScanRange>> {
     let top_port = 25565;

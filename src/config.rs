@@ -12,7 +12,7 @@ pub struct Config {
 
     /// The number of seconds to sleep after each scan. You can set this to 0
     /// if you want, but it mostly helps avoid pings being associated to the
-    /// wrong mode.
+    /// wrong strategy.
     ///
     /// Defaults to 10 seconds.
     #[serde(default)]
@@ -27,7 +27,7 @@ pub struct Config {
 
     /// The maximum amount of time each scan will take. Defaults to 5 minutes.
     /// You should probably leave it as the default unless you're debugging
-    /// something to do with switching modes.
+    /// something to do with switching strategies.
     #[serde(default)]
     pub scan_duration_secs: Option<u64>,
 
@@ -83,10 +83,11 @@ pub struct TargetConfig {
 #[serde(deny_unknown_fields)]
 pub struct ScannerConfig {
     pub enabled: bool,
-    /// The list of modes that we'll use to scan. By default all modes are
-    /// included. Mode names are the same ones as in modes.json.
+    /// The list of strategies that we'll use to scan. By default all strategies
+    /// are included. Strategy names are the same ones as in
+    /// strategies.json.
     #[serde(default)]
-    pub modes: Option<Vec<String>>,
+    pub strategies: Option<Vec<String>>,
 }
 
 #[derive(Deserialize, Default, Clone)]
@@ -107,7 +108,7 @@ pub struct RescanConfig {
     #[serde(default)]
     pub filter: toml::Table,
     #[serde(default)]
-    pub sort: Option<crate::modes::rescan::Sort>,
+    pub sort: Option<crate::strategies::rescan::Sort>,
 }
 
 #[derive(Deserialize, Default, Clone)]
@@ -142,8 +143,8 @@ pub struct DebugConfig {
 
     /// Scanning will only send a ping to the given address.
     ///
-    /// This also disables all other modes like rescanning and fingerprinting.
-    /// The exclude list is also ignored.
+    /// This also disables all other strategies like rescanning and
+    /// fingerprinting. The exclude list is also ignored.
     #[serde(default)]
     pub only_scan_addr: Option<SocketAddrV4>,
 

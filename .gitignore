@@ -6,6 +6,7 @@ config.toml
 .env
 
 modes.json
+strategies.json
 servers.txt
 out.txt
 /logs

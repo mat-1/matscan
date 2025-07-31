@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, fs, path::Path, str::FromStr};
 
 use rand::prelude::*;
 
@@ -15,7 +15,7 @@ pub mod slash32;
 #[derive(
     Clone, Copy, Debug, Eq, PartialEq, Hash, enum_utils::FromStr, enum_utils::IterVariants,
 )]
-pub enum ScanMode {
+pub enum ScanStrategy {
     Slash0,
     Slash24,
     Slash32,
@@ -27,28 +27,33 @@ pub enum ScanMode {
     RescanOlderThan365days,
 }
 
-pub struct ModePicker {
+pub struct StrategyPicker {
     // the number of new servers last attempt
     // defaults to a big number (so we try all of them first)
     // (we can't do usize::MAX because WeightedIndex breaks)
-    modes: HashMap<ScanMode, usize>,
+    strategies: HashMap<ScanStrategy, usize>,
 }
 
 const DEFAULT_FOUND: usize = 1_000_000;
-impl Default for ModePicker {
+impl Default for StrategyPicker {
     fn default() -> Self {
         // make a hashmap of { mode: servers fount last scan } and default to 2^16
 
-        // read modes.json
-        let mut modes = std::fs::read_to_string("modes.json")
+        // if modes.json exists, rename it to strategies.json
+        if !fs::exists("strategies.json").unwrap() {
+            let _ = fs::rename("modes.json", "strategies.json");
+        }
+
+        // read strategies.json
+        let mut modes = std::fs::read_to_string("strategies.json")
             .unwrap_or_default()
             .parse::<serde_json::Value>()
             .unwrap_or(serde_json::Value::Object(serde_json::Map::new()))
             .as_object()
-            .expect("failed to parse modes.json")
+            .expect("failed to parse strategies.json")
             .iter()
             .filter_map(|(mode, count)| {
-                if let Ok(mode) = ScanMode::from_str(mode) {
+                if let Ok(mode) = ScanStrategy::from_str(mode) {
                     Some((
                         mode,
                         count.as_u64().expect("couldn't parse count as number") as usize,
@@ -59,33 +64,37 @@ impl Default for ModePicker {
             })
             .collect::<HashMap<_, _>>();
 
-        for mode in ScanMode::iter() {
+        for mode in ScanStrategy::iter() {
             modes.entry(mode).or_insert(DEFAULT_FOUND);
         }
 
-        Self { modes }
+        Self { strategies: modes }
     }
 }
 
-impl ModePicker {
+impl StrategyPicker {
     /// Picks a mode to scan with. You can optionally pass a list of modes to
     /// pick from, otherwise it'll use all of them.
-    pub fn pick_mode(&self, modes: Option<Vec<ScanMode>>) -> ScanMode {
+    pub fn pick_strategy(&self, modes: Option<Vec<ScanStrategy>>) -> ScanStrategy {
         #[cfg(feature = "benchmark")]
-        return ScanMode::Slash0;
+        return ScanStrategy::Slash0;
         // return ScanMode::Slash32RangePorts;
 
         // if they're all 0, pick Slash0.
         // this mostly fixes a bug where some modes panic when the database is empty.
         if self
-            .modes
+            .strategies
             .values()
             .all(|&count| count == 0 || count == DEFAULT_FOUND)
         {
-            return ScanMode::Slash0;
+            return ScanStrategy::Slash0;
         }
 
-        let modes_vec = self.modes.iter().map(|(m, i)| (*m, *i)).collect::<Vec<_>>();
+        let modes_vec = self
+            .strategies
+            .iter()
+            .map(|(m, i)| (*m, *i))
+            .collect::<Vec<_>>();
         // filter by the modes argument
         let modes_vec = if let Some(modes) = modes {
             modes_vec
@@ -106,7 +115,7 @@ impl ModePicker {
         }
 
         // otherwise, pick the best one
-        let mut best_mode = ScanMode::Slash0;
+        let mut best_mode = ScanStrategy::Slash0;
         let mut best_score = 0;
         for (mode, score) in modes_vec.iter() {
             if *score > best_score {
@@ -117,34 +126,35 @@ impl ModePicker {
         best_mode
     }
 
-    pub fn update_mode(&mut self, mode: ScanMode, score: usize) {
-        self.modes.insert(mode, score);
+    pub fn update_strategy(&mut self, mode: ScanStrategy, score: usize) {
+        self.strategies.insert(mode, score);
 
-        // write modes.json
+        // write strategies.json
         let mut modes = serde_json::Map::new();
-        for (mode, count) in self.modes.iter() {
+        for (mode, count) in self.strategies.iter() {
             modes.insert(
                 format!("{mode:?}"),
                 serde_json::Value::Number((*count).into()),
             );
         }
 
-        if let Err(err) =
-            std::fs::write("modes.json", serde_json::to_string_pretty(&modes).unwrap())
-        {
-            eprintln!("failed to write modes.json: {err}");
+        if let Err(err) = fs::write(
+            "strategies.json",
+            serde_json::to_string_pretty(&modes).unwrap(),
+        ) {
+            eprintln!("failed to write strategies.json: {err}");
         }
     }
 }
 
-impl ScanMode {
+impl ScanStrategy {
     pub async fn get_ranges(
         &self,
         database: &mut Database,
         config: &Config,
     ) -> anyhow::Result<Vec<ScanRange>> {
         if let Some(only_scan_addr) = config.debug.only_scan_addr {
-            let ip = only_scan_addr.ip().clone();
+            let ip = *only_scan_addr.ip();
             let port = only_scan_addr.port();
             return Ok(vec![ScanRange {
                 addr_start: ip,
@@ -155,11 +165,11 @@ impl ScanMode {
         }
 
         match self {
-            ScanMode::Slash0 => slash0::get_ranges(database).await,
-            ScanMode::Slash24 => slash24::get_ranges(database).await,
-            ScanMode::Slash32 => slash32::get_ranges(database).await,
+            ScanStrategy::Slash0 => slash0::get_ranges(database).await,
+            ScanStrategy::Slash24 => slash24::get_ranges(database).await,
+            ScanStrategy::Slash32 => slash32::get_ranges(database).await,
 
-            ScanMode::Rescan1day => {
+            ScanStrategy::Rescan1day => {
                 rescan::get_ranges(
                     database,
                     &Default::default(),
@@ -171,7 +181,7 @@ impl ScanMode {
                 )
                 .await
             }
-            ScanMode::Rescan7days => {
+            ScanStrategy::Rescan7days => {
                 rescan::get_ranges(
                     database,
                     &Default::default(),
@@ -183,7 +193,7 @@ impl ScanMode {
                 )
                 .await
             }
-            ScanMode::Rescan30days => {
+            ScanStrategy::Rescan30days => {
                 rescan::get_ranges(
                     database,
                     &Default::default(),
@@ -195,7 +205,7 @@ impl ScanMode {
                 )
                 .await
             }
-            ScanMode::Rescan365days => {
+            ScanStrategy::Rescan365days => {
                 rescan::get_ranges(
                     database,
                     &Default::default(),
@@ -207,7 +217,7 @@ impl ScanMode {
                 )
                 .await
             }
-            ScanMode::RescanOlderThan365days => {
+            ScanStrategy::RescanOlderThan365days => {
                 rescan::get_ranges(
                     database,
                     &Default::default(),

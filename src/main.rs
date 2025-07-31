@@ -16,18 +16,18 @@ use matscan::{
     config::{Config, RescanConfig},
     database::Database,
     exclude,
-    modes::{ModePicker, ScanMode},
     processing::{process_pings, SharedData},
     scanner::{
         protocols::{self},
         targets::{Ipv4Range, Ipv4Ranges, ScanRange, ScanRanges},
         ScanSession, Scanner, ScannerReceiver,
     },
+    strategies::{ScanStrategy, StrategyPicker},
     terminal_colors::*,
 };
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-enum ModeCategory {
+enum StrategyCategory {
     Normal,
     Rescan,
     Fingerprint,
@@ -69,10 +69,10 @@ async fn main() -> anyhow::Result<()> {
 
     let mut database = Database::connect(&config.mongodb_uri).await?;
     let scanner = Scanner::new(&config);
-    let mut mode_picker = ModePicker::default();
+    let mut strategy_picker = StrategyPicker::default();
 
     // the number of times we've done a scan, used for switching between different
-    // mode categories (rescanning and scanning)
+    // strategy categories (rescanning and scanning)
     let mut i = 0;
 
     let rescan_enabled = config.rescan.enabled
@@ -87,25 +87,25 @@ async fn main() -> anyhow::Result<()> {
 
     let has_ended = Arc::new(AtomicBool::new(false));
 
-    // we pick a different mode category each scan
-    let mut mode_categories = vec![];
+    // we pick a different strategy category each scan
+    let mut strategy_categories = vec![];
     if config.scanner.enabled {
-        mode_categories.push(ModeCategory::Normal);
+        strategy_categories.push(StrategyCategory::Normal);
     }
     if rescan_enabled {
-        mode_categories.push(ModeCategory::Rescan);
+        strategy_categories.push(StrategyCategory::Rescan);
     }
     if config.fingerprinting.enabled {
-        mode_categories.push(ModeCategory::Fingerprint);
+        strategy_categories.push(StrategyCategory::Fingerprint);
     }
 
     if config.debug.only_scan_addr.is_some() {
-        info!("debug.only_scan_addr is set, setting only enabled mode category to Normal and ignoring exclude ranges");
-        mode_categories = vec![ModeCategory::Normal];
+        info!("debug.only_scan_addr is set, setting only enabled strategy category to Normal and ignoring exclude ranges");
+        strategy_categories = vec![StrategyCategory::Normal];
         exclude_ranges = Ipv4Ranges::default();
     }
 
-    if mode_categories.is_empty() {
+    if strategy_categories.is_empty() {
         panic!("Scanner, rescanner, and fingerprinting are all disabled in the config. You should probably at least enable scanner.");
     }
 
@@ -141,13 +141,14 @@ async fn main() -> anyhow::Result<()> {
 
     let mut processing_task = ProcessingTask::new(shared_process_data.clone(), config.clone());
 
-    // make sure the modes in config.scanner.modes are valid
-    let scan_modes = config.scanner.modes.as_ref().map(|modes| {
-        modes
-            .into_iter()
-            .map(|mode| {
-                ScanMode::from_str(&mode)
-                    .unwrap_or_else(|_| panic!("invalid mode {mode:?} in config.scanner.modes"))
+    // make sure the strategies in config.scanner.strategies are valid
+    let scan_strategies = config.scanner.strategies.as_ref().map(|strategies| {
+        strategies
+            .iter()
+            .map(|strat| {
+                ScanStrategy::from_str(strat).unwrap_or_else(|_| {
+                    panic!("invalid strategy {strat:?} in config.scanner.strategies")
+                })
             })
             .collect::<Vec<_>>()
     });
@@ -157,29 +158,29 @@ async fn main() -> anyhow::Result<()> {
 
         let mut ranges = ScanRanges::new();
 
-        let mode_category = mode_categories[i % mode_categories.len()];
+        let strategy_category = strategy_categories[i % strategy_categories.len()];
         i += 1;
 
-        // if the mode is none then that means it's a special mode (either rescanning or
-        // fingerprinting)
-        let mut mode: Option<ScanMode> = None;
-        match mode_category {
-            ModeCategory::Normal => {
-                let chosen_mode = mode_picker.pick_mode(scan_modes.clone());
+        // if the strategy is none then that means it's a special strategy (either
+        // rescanning or fingerprinting)
+        let mut strategy: Option<ScanStrategy> = None;
+        match strategy_category {
+            StrategyCategory::Normal => {
+                let chosen_strategy = strategy_picker.pick_strategy(scan_strategies.clone());
 
-                println!("chosen mode: {chosen_mode:?}");
+                println!("chosen strategy: {chosen_strategy:?}");
 
                 let get_ranges_start = Instant::now();
-                ranges.extend(chosen_mode.get_ranges(&mut database, &config).await?);
+                ranges.extend(chosen_strategy.get_ranges(&mut database, &config).await?);
                 let get_ranges_end = Instant::now();
                 println!("get_ranges took {:?}", get_ranges_end - get_ranges_start);
 
-                mode = Some(chosen_mode);
+                strategy = Some(chosen_strategy);
                 *protocol.write() = Box::new(minecraft_protocol.clone());
                 processing_task.set_protocol::<protocols::Minecraft>();
             }
-            ModeCategory::Rescan => {
-                println!("chosen mode: rescanning");
+            StrategyCategory::Rescan => {
+                println!("chosen strategy: rescanning");
 
                 // add the ranges we're rescanning
                 for rescan_config in [
@@ -195,13 +196,13 @@ async fn main() -> anyhow::Result<()> {
                 *protocol.write() = Box::new(minecraft_protocol.clone());
                 processing_task.set_protocol::<protocols::Minecraft>();
             }
-            ModeCategory::Fingerprint => {
-                println!("chosen mode: fingerprinting");
+            StrategyCategory::Fingerprint => {
+                println!("chosen strategy: fingerprinting");
 
                 let mut fingerprint_ranges = Vec::new();
                 let mut fingerprint_protocol_versions = HashMap::new();
                 for (addr, protocol_version) in
-                    matscan::modes::fingerprint::get_addrs_and_protocol_versions(&database)
+                    matscan::strategies::fingerprint::get_addrs_and_protocol_versions(&database)
                         .await?
                         .into_iter()
                         .collect::<Vec<_>>()
@@ -293,8 +294,8 @@ async fn main() -> anyhow::Result<()> {
         process_results(
             &mut shared_process_data,
             start_time,
-            mode,
-            &mut mode_picker,
+            strategy,
+            &mut strategy_picker,
             packets_sent,
         );
 
@@ -332,12 +333,13 @@ fn init_tracing(config: &Config) {
     tracing_subscriber::registry().with(layers).init();
 }
 
-/// Print the results of the scan, reset the counters, and update modes.json.
+/// Print the results of the scan, reset the counters, and update
+/// strategies.json.
 fn process_results(
     shared_process_data: &mut SharedData,
     start_time: Instant,
-    mode: Option<ScanMode>,
-    mode_picker: &mut ModePicker,
+    strategy: Option<ScanStrategy>,
+    strategy_picker: &mut StrategyPicker,
     packets_sent: u64,
 ) {
     let total_new = shared_process_data.total_new;
@@ -353,13 +355,13 @@ fn process_results(
 
     let elapsed_secs = elapsed.as_secs();
 
-    if let Some(mode) = mode {
+    if let Some(strategy) = strategy {
         let added_per_minute = ((total_new + revived) as f64 / elapsed.as_secs_f64()) * 60.0;
         println!(
-            "ok finished adding to db after {BOLD}{elapsed_secs}{RESET} seconds (mode: {BOLD}{mode:?}{RESET}, {YELLOW}updated {BOLD}{results}{RESET}{YELLOW}/{packets_sent}{RESET}, {GREEN}revived {BOLD}{revived}{RESET}, {BLUE}added {total_new}{RESET}, {BOLD}{added_per_minute:.2}{RESET} new per minute)",
+            "ok finished adding to db after {BOLD}{elapsed_secs}{RESET} seconds (strat: {BOLD}{strategy:?}{RESET}, {YELLOW}updated {BOLD}{results}{RESET}{YELLOW}/{packets_sent}{RESET}, {GREEN}revived {BOLD}{revived}{RESET}, {BLUE}added {total_new}{RESET}, {BOLD}{added_per_minute:.2}{RESET} new per minute)",
         );
         info!(
-            "Finished adding to database after {elapsed_secs} seconds. Mode: {mode:?}, updated {results}/{packets_sent}, revived {revived}, added {total_new}, {added_per_minute:.2} new per minute",
+            "Finished adding to database after {elapsed_secs} seconds. Strat: {strategy:?}, updated {results}/{packets_sent}, revived {revived}, added {total_new}, {added_per_minute:.2} new per minute",
         );
 
         // prioritize finding servers on the default port since they're more likely to
@@ -376,11 +378,11 @@ fn process_results(
         let unnormalized_score = total_new_score + revived_score + total_new_on_default_port_score;
 
         // score ends up being servers per hour-ish
-        // (we add 30 seconds so if a mode finishes very quickly it's not super biased
-        // towards it)
+        // (we add 30 seconds so if a strategy finishes very quickly it's not super
+        // biased towards it)
         let score = (unnormalized_score * 3600.0 / (elapsed.as_secs_f64() + 30.)).round() as usize;
         println!("got score {score} from {unnormalized_score} = {total_new_score} + {revived_score} + {total_new_on_default_port_score}");
-        mode_picker.update_mode(mode, score);
+        strategy_picker.update_strategy(strategy, score);
     } else {
         let percent_replied = (results as f64 / packets_sent as f64) * 100.0;
         println!(
@@ -400,7 +402,7 @@ async fn maybe_rescan_with_config(
 ) -> anyhow::Result<()> {
     if rescan.enabled {
         ranges.extend(
-            matscan::modes::rescan::get_ranges(
+            matscan::strategies::rescan::get_ranges(
                 database,
                 &rescan.filter,
                 rescan.rescan_every_secs,

@@ -4,7 +4,7 @@ mongodb_uri = 'mongodb://REPLACEME'
 
 # packets per second
 rate = 100_000
-# sleeps after each scan so slow responses don't get attributed to the wrong mode
+# sleeps after each scan so slow responses don't get attributed to the wrong strategy
 sleep_secs = 10
 
 # if you want to use more source ports then uncomment this:

@@ -54,7 +54,7 @@ impl TemplatePacket {
     pub fn new(repr: TemplatePacketRepr) -> Self {
         let tcp_options_length_as_bytes: usize =
             repr.options.iter().map(TcpOptionPacket::packet_size).sum();
-        let tcp_options_length_as_words = (tcp_options_length_as_bytes + 3) / 4;
+        let tcp_options_length_as_words = tcp_options_length_as_bytes.div_ceil(4);
 
         // divide by 4 and round up
         let tcp_header_len: usize = 20 + tcp_options_length_as_words * 4;

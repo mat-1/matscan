@@ -21,7 +21,7 @@ matscan is heavily inspired by [masscan](https://github.com/robertdavidgraham/ma
 ## Note
 
 I highly encourage you to make your own server scanner instead of relying on someone else's code, I promise you'll have a lot more fun that way.
-Also if you do intend on using any of the code here, please read the [license](LICENSE).
+The code is provided as-is; I do not provide support for running matscan and breaking changes may be pushed to this repo without warning.
 
 ## Usage
 
@@ -29,7 +29,7 @@ It is assumed that you know the basics of server scanning. Otherwise, I recommen
 
 Rename `example-config.toml` to `config.toml` and fill in the fields.
 
-You'll also have to make a MongoDB database called `mcscanner` with two collections called `servers` and `bad_servers`. You should add a unique index for `addr+port` and a normal index for `timestamp` in the `servers` collection.
+You'll also have to make a MongoDB database called `mcscanner` with two collections called `servers` and `bad_servers`. You must add a unique index for `addr`+`port` and a normal index for `timestamp` in the `servers` collection.
 
 ```sh
 # Firewall port 61000 so your OS doesn't close the connections
