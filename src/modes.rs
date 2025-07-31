@@ -1,6 +1,6 @@
 use std::{collections::HashMap, str::FromStr};
 
-use rand::{distributions::WeightedIndex, prelude::*};
+use rand::prelude::*;
 
 use crate::{config::Config, database::Database, scanner::targets::ScanRange};
 
@@ -9,54 +9,16 @@ use self::rescan::Sort;
 pub mod fingerprint;
 pub mod rescan;
 pub mod slash0;
-pub mod slash0_few_ports;
-pub mod slash0_filtered_by_asn;
-pub mod slash0_filtered_by_asn_but_less;
-pub mod slash0_filtered_by_slash24;
-pub mod slash0_filtered_by_slash24_30d;
-pub mod slash0_filtered_by_slash24_new;
-pub mod slash0_filtered_by_slash24_top_1024_ports_uniform;
-pub mod slash0_filtered_by_slash24_top_128_ports_uniform;
-pub mod slash0_filtered_by_slash24_top_ports_weighted;
 pub mod slash24;
-pub mod slash24_all_ports;
-pub mod slash24_all_ports_but_less;
-pub mod slash24_all_ports_new;
-pub mod slash24_few_ports;
-pub mod slash24_few_ports_new;
-pub mod slash24_new;
-pub mod slash32_all_ports;
-pub mod slash32_all_ports_365d;
-pub mod slash32_all_ports_new;
-pub mod slash32_range_ports;
-pub mod slash32_range_ports_new;
+pub mod slash32;
 
 #[derive(
     Clone, Copy, Debug, Eq, PartialEq, Hash, enum_utils::FromStr, enum_utils::IterVariants,
 )]
 pub enum ScanMode {
-    Slash0FewPorts,
-    Slash0FilteredByAsn,
-    Slash0FilteredByAsnButLess,
-    Slash0FilteredBySlash24,
-    Slash0FilteredBySlash2430d,
-    Slash0FilteredBySlash24New,
-    Slash0FilteredBySlash24Top128PortsUniform,
-    Slash0FilteredBySlash24Top1024PortsUniform,
-    Slash0FilteredBySlash24TopPortsWeighted,
     Slash0,
-    Slash24AllPortsButLess,
-    Slash24AllPortsNew,
-    Slash24AllPorts,
     Slash24,
-    Slash24FewPorts,
-    Slash24FewPortsNew,
-    Slash24New,
-    Slash32AllPorts,
-    Slash32AllPorts365d,
-    Slash32AllPortsNew,
-    Slash32RangePorts,
-    Slash32RangePortsNew,
+    Slash32,
 
     Rescan1day,
     Rescan7days,
@@ -123,9 +85,7 @@ impl ModePicker {
             return ScanMode::Slash0;
         }
 
-        let mut rng: rand::rngs::ThreadRng = rand::thread_rng();
-        let modes_vec = self.modes.iter().collect::<Vec<_>>();
-
+        let modes_vec = self.modes.iter().map(|(m, i)| (*m, *i)).collect::<Vec<_>>();
         // filter by the modes argument
         let modes_vec = if let Some(modes) = modes {
             modes_vec
@@ -136,16 +96,25 @@ impl ModePicker {
             modes_vec
         };
 
-        let dist = WeightedIndex::new(
-            modes_vec
+        // 1% chance to pick a random strategy
+        if rand::random::<f64>() < 0.01 {
+            return modes_vec
                 .iter()
-                // +1 so if it got 0 there's still a chance to do it again
-                .map(|(_, &count)| (count.pow(2)) + 1)
-                .collect::<Vec<usize>>(),
-        )
-        .unwrap();
+                .map(|(mode, _)| *mode)
+                .choose(&mut rand::thread_rng())
+                .unwrap();
+        }
 
-        *modes_vec[dist.sample(&mut rng)].0
+        // otherwise, pick the best one
+        let mut best_mode = ScanMode::Slash0;
+        let mut best_score = 0;
+        for (mode, score) in modes_vec.iter() {
+            if *score > best_score {
+                best_score = *score;
+                best_mode = *mode;
+            }
+        }
+        best_mode
     }
 
     pub fn update_mode(&mut self, mode: ScanMode, score: usize) {
@@ -186,44 +155,9 @@ impl ScanMode {
         }
 
         match self {
-            ScanMode::Slash0FewPorts => slash0_few_ports::get_ranges(database).await,
             ScanMode::Slash0 => slash0::get_ranges(database).await,
-            ScanMode::Slash0FilteredByAsn => slash0_filtered_by_asn::get_ranges(database).await,
-            ScanMode::Slash0FilteredByAsnButLess => {
-                slash0_filtered_by_asn_but_less::get_ranges(database).await
-            }
-            ScanMode::Slash0FilteredBySlash24Top128PortsUniform => {
-                slash0_filtered_by_slash24_top_128_ports_uniform::get_ranges(database).await
-            }
-            ScanMode::Slash0FilteredBySlash24Top1024PortsUniform => {
-                slash0_filtered_by_slash24_top_1024_ports_uniform::get_ranges(database).await
-            }
-            ScanMode::Slash0FilteredBySlash24TopPortsWeighted => {
-                slash0_filtered_by_slash24_top_ports_weighted::get_ranges(database).await
-            }
-            ScanMode::Slash0FilteredBySlash24 => {
-                slash0_filtered_by_slash24::get_ranges(database).await
-            }
-            ScanMode::Slash0FilteredBySlash2430d => {
-                slash0_filtered_by_slash24_30d::get_ranges(database).await
-            }
-            ScanMode::Slash0FilteredBySlash24New => {
-                slash0_filtered_by_slash24_new::get_ranges(database).await
-            }
-            ScanMode::Slash24AllPortsButLess => {
-                slash24_all_ports_but_less::get_ranges(database).await
-            }
-            ScanMode::Slash24AllPortsNew => slash24_all_ports_new::get_ranges(database).await,
-            ScanMode::Slash24AllPorts => slash24_all_ports::get_ranges(database).await,
-            ScanMode::Slash24FewPorts => slash24_few_ports::get_ranges(database).await,
-            ScanMode::Slash24FewPortsNew => slash24_few_ports_new::get_ranges(database).await,
-            ScanMode::Slash24New => slash24_new::get_ranges(database).await,
             ScanMode::Slash24 => slash24::get_ranges(database).await,
-            ScanMode::Slash32AllPorts => slash32_all_ports::get_ranges(database).await,
-            ScanMode::Slash32AllPorts365d => slash32_all_ports_365d::get_ranges(database).await,
-            ScanMode::Slash32AllPortsNew => slash32_all_ports_new::get_ranges(database).await,
-            ScanMode::Slash32RangePorts => slash32_range_ports::get_ranges(database).await,
-            ScanMode::Slash32RangePortsNew => slash32_range_ports_new::get_ranges(database).await,
+            ScanMode::Slash32 => slash32::get_ranges(database).await,
 
             ScanMode::Rescan1day => {
                 rescan::get_ranges(
