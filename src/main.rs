@@ -9,13 +9,13 @@ use std::{
 
 use dotenv::dotenv;
 use parking_lot::{Mutex, RwLock};
-use tracing::{info, level_filters::LevelFilter};
-use tracing_subscriber::{prelude::*, EnvFilter};
+use tracing::info;
 
 use matscan::{
     config::{Config, RescanConfig},
     database::Database,
     exclude,
+    net::tcp::StatelessTcpWriteHalf,
     processing::{process_pings, SharedData},
     scanner::{
         protocols::{self},
@@ -24,6 +24,7 @@ use matscan::{
     },
     strategies::{ScanStrategy, StrategyPicker},
     terminal_colors::*,
+    tracing::init_tracing,
 };
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -67,7 +68,7 @@ async fn main() -> anyhow::Result<()> {
         config.target.protocol_version,
     );
 
-    let mut database = Database::connect(&config.mongodb_uri).await?;
+    let database = Database::connect(&config.mongodb_uri).await?;
     let scanner = Scanner::new(&config);
     let mut strategy_picker = StrategyPicker::default();
 
@@ -153,6 +154,15 @@ async fn main() -> anyhow::Result<()> {
             .collect::<Vec<_>>()
     });
 
+    let mut ctx = ScanContext {
+        exclude_ranges,
+        database,
+        scanner_writer,
+        config,
+        scanner_seed,
+        shared_process_data,
+    };
+
     loop {
         let start_time = Instant::now();
 
@@ -171,7 +181,11 @@ async fn main() -> anyhow::Result<()> {
                 println!("chosen strategy: {chosen_strategy:?}");
 
                 let get_ranges_start = Instant::now();
-                ranges.extend(chosen_strategy.get_ranges(&mut database, &config).await?);
+                ranges.extend(
+                    chosen_strategy
+                        .get_ranges(&mut ctx.database, &ctx.config)
+                        .await?,
+                );
                 let get_ranges_end = Instant::now();
                 println!("get_ranges took {:?}", get_ranges_end - get_ranges_start);
 
@@ -184,13 +198,13 @@ async fn main() -> anyhow::Result<()> {
 
                 // add the ranges we're rescanning
                 for rescan_config in [
-                    &config.rescan,
-                    &config.rescan2,
-                    &config.rescan3,
-                    &config.rescan4,
-                    &config.rescan5,
+                    &ctx.config.rescan,
+                    &ctx.config.rescan2,
+                    &ctx.config.rescan3,
+                    &ctx.config.rescan4,
+                    &ctx.config.rescan5,
                 ] {
-                    maybe_rescan_with_config(&database, &mut ranges, rescan_config).await?;
+                    maybe_rescan_with_config(&ctx.database, &mut ranges, rescan_config).await?;
                 }
 
                 *protocol.write() = Box::new(minecraft_protocol.clone());
@@ -202,7 +216,7 @@ async fn main() -> anyhow::Result<()> {
                 let mut fingerprint_ranges = Vec::new();
                 let mut fingerprint_protocol_versions = HashMap::new();
                 for (addr, protocol_version) in
-                    matscan::strategies::fingerprint::get_addrs_and_protocol_versions(&database)
+                    matscan::strategies::fingerprint::get_addrs_and_protocol_versions(&ctx.database)
                         .await?
                         .into_iter()
                         .collect::<Vec<_>>()
@@ -219,87 +233,9 @@ async fn main() -> anyhow::Result<()> {
             }
         }
 
-        let count_before_exclude = ranges.count();
-        ranges.apply_exclude(&exclude_ranges);
+        perform_scan(&ctx, ranges, strategy, start_time, &mut strategy_picker).await;
 
-        let bad_ips = Ipv4Ranges::new(
-            database
-                .shared
-                .lock()
-                .bad_ips
-                .clone()
-                .into_iter()
-                .map(Ipv4Range::single)
-                .collect::<Vec<_>>(),
-        );
-
-        let mut default_port_ranges = Vec::new();
-        for excluded_range in ranges.apply_exclude(&bad_ips) {
-            // we still scan port 25565 on bad ips (ips that have the same
-            // server on every port)
-            default_port_ranges.push(ScanRange::single_port(
-                excluded_range.start,
-                excluded_range.end,
-                25565,
-            ));
-        }
-        ranges.extend(default_port_ranges);
-
-        let target_count = ranges.count();
-        let range_count = ranges.ranges().len();
-        println!("scanning {target_count} targets ({range_count} ranges)");
-        println!(
-            "excluded {} targets from this scan",
-            count_before_exclude - target_count
-        );
-
-        // this just spews out syn packets so it doesn't need to know what protocol
-        // we're using
-        let session = ScanSession::new(ranges);
-        let mut scanner_writer = scanner_writer.clone();
-        let scanner_thread = thread::spawn(move || {
-            session.run(
-                config.rate,
-                &mut scanner_writer,
-                scanner_seed,
-                config.scan_duration_secs.unwrap_or(60 * 5),
-            )
-        });
-
-        // wait until the scanner thread is done
-        while !scanner_thread.is_finished() {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-        println!("waiting for processing to finish...");
-
-        let processing_start = Instant::now();
-        // wait until shared_process_data.processing_count is 0
-        while shared_process_data.lock().is_processing {
-            tokio::time::sleep(Duration::from_millis(100)).await;
-        }
-        let processing_time = processing_start.elapsed();
-        let original_sleep_secs = config.sleep_secs.unwrap_or(10);
-        // subtract the processing time from the sleep time
-        if original_sleep_secs > processing_time.as_secs() {
-            let sleep_secs = original_sleep_secs - processing_time.as_secs();
-            println!("sleeping for {sleep_secs} seconds");
-            tokio::time::sleep(Duration::from_secs(sleep_secs)).await;
-        }
-
-        // the thread should've finished by now so it'll join instantly
-        println!("joining scanner thread");
-        let packets_sent = scanner_thread.join().unwrap();
-
-        let mut shared_process_data = shared_process_data.lock();
-        process_results(
-            &mut shared_process_data,
-            start_time,
-            strategy,
-            &mut strategy_picker,
-            packets_sent,
-        );
-
-        if config.debug.exit_on_done {
+        if ctx.config.debug.exit_on_done {
             println!("exit_on_done is true, exiting");
             break;
         }
@@ -313,24 +249,105 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn init_tracing(config: &Config) {
-    let mut layers = Vec::new();
+struct ScanContext {
+    exclude_ranges: Ipv4Ranges,
+    database: Database,
+    scanner_writer: StatelessTcpWriteHalf,
+    config: Config,
+    scanner_seed: u64,
+    shared_process_data: Arc<Mutex<SharedData>>,
+}
 
-    layers.push(EnvFilter::from_default_env().boxed());
+async fn perform_scan(
+    ctx: &ScanContext,
+    mut ranges: ScanRanges,
+    strategy: Option<ScanStrategy>,
+    start_time: Instant,
+    strategy_picker: &mut StrategyPicker,
+) {
+    let count_before_exclude = ranges.count();
+    ranges.apply_exclude(&ctx.exclude_ranges);
 
-    if let Some(logging_dir) = &config.logging_dir {
-        let file_appender = tracing_appender::rolling::daily(logging_dir, "matscan.log");
+    let bad_ips = Ipv4Ranges::new(
+        ctx.database
+            .shared
+            .lock()
+            .bad_ips
+            .clone()
+            .into_iter()
+            .map(Ipv4Range::single)
+            .collect::<Vec<_>>(),
+    );
 
-        layers.push(
-            tracing_subscriber::fmt::layer()
-                .with_ansi(false)
-                .with_writer(file_appender)
-                .with_filter(LevelFilter::DEBUG)
-                .boxed(),
-        );
+    let mut default_port_ranges = Vec::new();
+    for excluded_range in ranges.apply_exclude(&bad_ips) {
+        // we still scan port 25565 on bad ips (ips that have the same
+        // server on every port)
+        default_port_ranges.push(ScanRange::single_port(
+            excluded_range.start,
+            excluded_range.end,
+            25565,
+        ));
+    }
+    ranges.extend(default_port_ranges);
+
+    let target_count = ranges.count();
+    let range_count = ranges.ranges().len();
+    println!("scanning {target_count} targets ({range_count} ranges)");
+    println!(
+        "excluded {} targets from this scan",
+        count_before_exclude - target_count
+    );
+
+    // this just spews out syn packets so it doesn't need to know what protocol
+    // we're using
+    let session = ScanSession::new(ranges);
+    let mut scanner_writer = ctx.scanner_writer.clone();
+
+    let max_packets_per_second = ctx.config.rate;
+    let scanner_seed = ctx.scanner_seed;
+    let scan_duration_secs = ctx.config.scan_duration_secs.unwrap_or(60 * 5);
+    let scanner_thread = thread::spawn(move || {
+        session.run(
+            max_packets_per_second,
+            &mut scanner_writer,
+            scanner_seed,
+            scan_duration_secs,
+        )
+    });
+
+    // wait until the scanner thread is done
+    while !scanner_thread.is_finished() {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    println!("waiting for processing to finish...");
+
+    let processing_start = Instant::now();
+    // wait until shared_process_data.processing_count is 0
+    while ctx.shared_process_data.lock().is_processing {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let processing_time = processing_start.elapsed();
+    let original_sleep_secs = ctx.config.sleep_secs.unwrap_or(10);
+    // subtract the processing time from the sleep time
+    if original_sleep_secs > processing_time.as_secs() {
+        let sleep_secs = original_sleep_secs - processing_time.as_secs();
+        println!("sleeping for {sleep_secs} seconds");
+        tokio::time::sleep(Duration::from_secs(sleep_secs)).await;
     }
 
-    tracing_subscriber::registry().with(layers).init();
+    // the thread should've finished by now so it'll join instantly
+    println!("joining scanner thread");
+    let packets_sent = scanner_thread.join().unwrap();
+
+    let mut shared_process_data = ctx.shared_process_data.lock();
+    process_results(
+        &mut shared_process_data,
+        start_time,
+        strategy,
+        strategy_picker,
+        packets_sent,
+    );
 }
 
 /// Print the results of the scan, reset the counters, and update
@@ -402,18 +419,10 @@ async fn maybe_rescan_with_config(
 ) -> anyhow::Result<()> {
     if rescan.enabled {
         ranges.extend(
-            matscan::strategies::rescan::get_ranges(
-                database,
-                &rescan.filter,
-                rescan.rescan_every_secs,
-                rescan.players_online_ago_max_secs,
-                rescan.last_ping_ago_max_secs.unwrap_or(60 * 60 * 2),
-                rescan.limit,
-                rescan.sort,
-            )
-            .await?
-            .into_iter()
-            .collect::<Vec<_>>(),
+            matscan::strategies::rescan::get_ranges(database, rescan)
+                .await?
+                .into_iter()
+                .collect::<Vec<_>>(),
         );
     }
     Ok(())

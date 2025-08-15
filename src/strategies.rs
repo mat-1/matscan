@@ -1,8 +1,12 @@
-use std::{collections::HashMap, fs, path::Path, str::FromStr};
+use std::{collections::HashMap, fs, str::FromStr};
 
 use rand::prelude::*;
 
-use crate::{config::Config, database::Database, scanner::targets::ScanRange};
+use crate::{
+    config::{Config, RescanConfig},
+    database::Database,
+    scanner::targets::ScanRange,
+};
 
 use self::rescan::Sort;
 
@@ -39,7 +43,7 @@ impl Default for StrategyPicker {
     fn default() -> Self {
         // make a hashmap of { mode: servers fount last scan } and default to 2^16
 
-        // if modes.json exists, rename it to strategies.json
+        // backwards compat
         if !fs::exists("strategies.json").unwrap() {
             let _ = fs::rename("modes.json", "strategies.json");
         }
@@ -172,60 +176,70 @@ impl ScanStrategy {
             ScanStrategy::Rescan1day => {
                 rescan::get_ranges(
                     database,
-                    &Default::default(),
-                    60 * 60 * 2,
-                    None,
-                    60 * 60 * 24,
-                    Some(250_000),
-                    Some(Sort::Oldest),
+                    &RescanConfig {
+                        rescan_every_secs: 60 * 60 * 2,
+                        last_ping_ago_max_secs: 60 * 60 * 24,
+                        limit: Some(250_000),
+                        sort: Some(Sort::Oldest),
+                        padded: true,
+                        ..Default::default()
+                    },
                 )
                 .await
             }
             ScanStrategy::Rescan7days => {
                 rescan::get_ranges(
                     database,
-                    &Default::default(),
-                    60 * 60 * 24,
-                    None,
-                    60 * 60 * 24 * 7,
-                    Some(250_000),
-                    Some(Sort::Oldest),
+                    &RescanConfig {
+                        rescan_every_secs: 60 * 60 * 24,
+                        last_ping_ago_max_secs: 60 * 60 * 24 * 7,
+                        limit: Some(250_000),
+                        sort: Some(Sort::Oldest),
+                        padded: true,
+                        ..Default::default()
+                    },
                 )
                 .await
             }
             ScanStrategy::Rescan30days => {
                 rescan::get_ranges(
                     database,
-                    &Default::default(),
-                    60 * 60 * 24 * 7,
-                    None,
-                    60 * 60 * 24 * 30,
-                    Some(250_000),
-                    Some(Sort::Random),
+                    &RescanConfig {
+                        rescan_every_secs: 60 * 60 * 24 * 7,
+                        last_ping_ago_max_secs: 60 * 60 * 24 * 30,
+                        limit: Some(250_000),
+                        sort: Some(Sort::Random),
+                        padded: true,
+                        ..Default::default()
+                    },
                 )
                 .await
             }
             ScanStrategy::Rescan365days => {
                 rescan::get_ranges(
                     database,
-                    &Default::default(),
-                    60 * 60 * 24 * 30,
-                    None,
-                    60 * 60 * 24 * 365,
-                    Some(500_000),
-                    Some(Sort::Random),
+                    &RescanConfig {
+                        rescan_every_secs: 60 * 60 * 24 * 30,
+                        last_ping_ago_max_secs: 60 * 60 * 24 * 365,
+                        limit: Some(500_000),
+                        sort: Some(Sort::Random),
+                        padded: true,
+                        ..Default::default()
+                    },
                 )
                 .await
             }
             ScanStrategy::RescanOlderThan365days => {
                 rescan::get_ranges(
                     database,
-                    &Default::default(),
-                    60 * 60 * 24 * 365,
-                    None,
-                    60 * 60 * 24 * 365 * 10,
-                    Some(500_000),
-                    Some(Sort::Random),
+                    &RescanConfig {
+                        rescan_every_secs: 60 * 60 * 24 * 365,
+                        last_ping_ago_max_secs: 60 * 60 * 24 * 365 * 10,
+                        limit: Some(500_000),
+                        sort: Some(Sort::Random),
+                        padded: true,
+                        ..Default::default()
+                    },
                 )
                 .await
             }

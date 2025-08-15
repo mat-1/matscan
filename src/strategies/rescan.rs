@@ -9,6 +9,7 @@ use serde::Deserialize;
 use tracing::warn;
 
 use crate::{
+    config::RescanConfig,
     database::{self, Database},
     scanner::targets::ScanRange,
 };
@@ -22,27 +23,22 @@ pub enum Sort {
 
 pub async fn get_ranges(
     database: &Database,
-    extra_filter: &toml::Table,
-    rescan_every_secs: u64,
-    players_online_ago_max_secs: Option<u64>,
-    last_ping_ago_max_secs: u64,
-    limit: Option<usize>,
-    sort: Option<Sort>,
+    opts: &RescanConfig,
 ) -> anyhow::Result<Vec<ScanRange>> {
     let mut ranges = Vec::new();
 
     let mut filter = doc! {
         "timestamp": {
-            "$gt": bson::DateTime::from(SystemTime::now() - Duration::from_secs(last_ping_ago_max_secs)),
-            "$lt": bson::DateTime::from(SystemTime::now() - Duration::from_secs(rescan_every_secs))
+            "$gt": bson::DateTime::from(SystemTime::now() - Duration::from_secs(opts.last_ping_ago_max_secs)),
+            "$lt": bson::DateTime::from(SystemTime::now() - Duration::from_secs(opts.rescan_every_secs))
         }
     };
 
-    for (key, value) in extra_filter {
+    for (key, value) in &opts.filter {
         filter.insert(key, bson::to_bson(&value)?);
     }
 
-    if let Some(players_online_ago_max_secs) = players_online_ago_max_secs {
+    if let Some(players_online_ago_max_secs) = opts.players_online_ago_max_secs {
         filter.insert(
             "lastActive",
             doc! {
@@ -59,15 +55,15 @@ pub async fn get_ranges(
     pipeline.push(doc! { "$match": filter });
     pipeline.push(doc! { "$project": { "addr": 1, "port": 1, "_id": 0 } });
 
-    let sort = sort.unwrap_or(Sort::Oldest);
+    let sort = opts.sort.unwrap_or(Sort::Oldest);
 
     match sort {
         Sort::Random => {
-            pipeline.push(doc! { "$sample": { "size": limit.unwrap_or(10000000) as i64 } });
+            pipeline.push(doc! { "$sample": { "size": opts.limit.unwrap_or(10000000) as i64 } });
         }
         Sort::Oldest => {
             pipeline.push(doc! { "$sort": { "timestamp": 1 } });
-            if let Some(limit) = limit {
+            if let Some(limit) = opts.limit {
                 pipeline.push(doc! { "$limit": limit as i64 });
             }
         }
@@ -112,6 +108,14 @@ pub async fn get_ranges(
         if ranges.len() % 1000 == 0 {
             println!("{} ips", ranges.len());
         }
+    }
+
+    if opts.padded {
+        ranges.push(ScanRange::single_port(
+            Ipv4Addr::new(0, 0, 0, 0),
+            Ipv4Addr::new(255, 255, 255, 255),
+            25565,
+        ));
     }
 
     Ok(ranges)

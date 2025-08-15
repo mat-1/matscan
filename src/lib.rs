@@ -7,3 +7,4 @@ pub mod processing;
 pub mod scanner;
 pub mod strategies;
 pub mod terminal_colors;
+pub mod tracing;

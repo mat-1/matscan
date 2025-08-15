@@ -101,14 +101,23 @@ pub struct RescanConfig {
 
     /// The maximum number of seconds since the last ping to consider a server
     /// for rescanning.
-    #[serde(default)]
-    pub last_ping_ago_max_secs: Option<u64>,
+    #[serde(default = "default_last_ping_ago_max_secs")]
+    pub last_ping_ago_max_secs: u64,
 
     pub limit: Option<usize>,
     #[serde(default)]
     pub filter: toml::Table,
     #[serde(default)]
     pub sort: Option<crate::strategies::rescan::Sort>,
+
+    /// Whether we should add some extra random IPs to scan, to avoid
+    /// overloading our server from receiving too many valid responses at once.
+    #[serde(default)]
+    pub padded: bool,
+}
+fn default_last_ping_ago_max_secs() -> u64 {
+    // 2 hours
+    60 * 60 * 2
 }
 
 #[derive(Deserialize, Default, Clone)]

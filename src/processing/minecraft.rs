@@ -295,6 +295,7 @@ fn clean_response_data(
             version_name,
             "COSMIC GUARD" | "TCPShield.com" | "â  Error" | "⚠ Error"
         )
+        || description.starts_with("Error connecting to server#")
         // play.devlencio.net requested exclusion because Velocity logs errors
         // on ping, and by MOTD due to a dynamic IP.
         || description.contains("The hub for all Devlencio servers")
