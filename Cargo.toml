@@ -36,6 +36,13 @@ flate2 = "1.0.32"
 async-trait = "0.1.81"
 mongodb = "3.0.1"
 tracing-appender = "0.2.3"
+# sqlx = { version = "0.8.6", features = [
+#     "runtime-tokio",
+#     "postgres",
+#     "tls-rustls",
+#     "chrono",
+#     "uuid",
+# ] }
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

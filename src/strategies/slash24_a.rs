@@ -1,5 +1,4 @@
 use std::{
-    cmp::Ordering,
     collections::HashMap,
     net::{Ipv4Addr, SocketAddrV4},
 };
@@ -9,7 +8,6 @@ use crate::{
     scanner::targets::ScanRange,
 };
 
-/// Scan ports that are likely to have servers on random ranges.
 pub async fn get_ranges(database: &Database) -> anyhow::Result<Vec<ScanRange>> {
     println!("collecting servers");
     let known_servers =
@@ -29,8 +27,8 @@ pub async fn get_ranges(database: &Database) -> anyhow::Result<Vec<ScanRange>> {
         target_ranges.push(ScanRange {
             addr_start: Ipv4Addr::new(range_prefix.0, range_prefix.1, range_prefix.2, 0),
             addr_end: Ipv4Addr::new(range_prefix.0, range_prefix.1, range_prefix.2, 255),
-            port_start: 25560,
-            port_end: 25570,
+            port_start: 25565,
+            port_end: 25565,
         });
     }
 
@@ -66,39 +64,4 @@ pub fn to_ranges(known_servers: &Vec<SocketAddrV4>) -> HashMap<(u8, u8, u8), Ser
         range.ports = combined.iter().map(|(_, port)| *port).collect();
     }
     ranges
-}
-
-pub fn get_related_score(a_range: &ServerGroup, b_range: &ServerGroup) -> f64 {
-    // basically levenstein distance
-    let mut distance: u32 = 0;
-    let mut a_iter = a_range.ports.iter();
-    let mut b_iter = b_range.ports.iter();
-    let mut a = a_iter.next();
-    let mut b = b_iter.next();
-    while a.is_some() && b.is_some() {
-        match a.cmp(&b) {
-            Ordering::Equal => {
-                a = a_iter.next();
-                b = b_iter.next();
-            }
-            Ordering::Less => {
-                distance += 1;
-                a = a_iter.next();
-            }
-            Ordering::Greater => {
-                distance += 1;
-                b = b_iter.next();
-            }
-        }
-    }
-    while a.is_some() {
-        distance += 1;
-        a = a_iter.next();
-    }
-    while b.is_some() {
-        distance += 1;
-        b = b_iter.next();
-    }
-    let max_distance = a_range.ports.len() + b_range.ports.len();
-    1.0 - (distance as f64 / max_distance as f64)
 }

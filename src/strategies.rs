@@ -12,16 +12,24 @@ use self::rescan::Sort;
 
 pub mod fingerprint;
 pub mod rescan;
-pub mod slash0;
-pub mod slash24;
-pub mod slash32;
+mod slash0;
+mod slash16_a;
+mod slash16_b;
+mod slash24_a;
+mod slash24_b;
+mod slash24_c;
+mod slash32;
 
 #[derive(
     Clone, Copy, Debug, Eq, PartialEq, Hash, enum_utils::FromStr, enum_utils::IterVariants,
 )]
 pub enum ScanStrategy {
     Slash0,
-    Slash24,
+    Slash16a,
+    Slash16b,
+    Slash24a,
+    Slash24b,
+    Slash24c,
     Slash32,
 
     Rescan1day,
@@ -170,7 +178,11 @@ impl ScanStrategy {
 
         match self {
             ScanStrategy::Slash0 => slash0::get_ranges(database).await,
-            ScanStrategy::Slash24 => slash24::get_ranges(database).await,
+            ScanStrategy::Slash16a => slash16_a::get_ranges(database).await,
+            ScanStrategy::Slash16b => slash16_b::get_ranges(database).await,
+            ScanStrategy::Slash24a => slash24_a::get_ranges(database).await,
+            ScanStrategy::Slash24b => slash24_b::get_ranges(database).await,
+            ScanStrategy::Slash24c => slash24_c::get_ranges(database).await,
             ScanStrategy::Slash32 => slash32::get_ranges(database).await,
 
             ScanStrategy::Rescan1day => {
