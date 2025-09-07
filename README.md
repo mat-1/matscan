@@ -30,13 +30,13 @@ It is assumed that you know the basics of server scanning. Otherwise, I recommen
 Rename `example-config.toml` to `config.toml` and fill in the fields.
 
 Assuming you already have Postgres installed, you can make the database with the following queries:
-```sh
+```sql
 CREATE DATABASE matscan;
 CREATE USER matscan WITH PASSWORD 'replace me!!!';
 GRANT ALL PRIVILEGES ON DATABASE matscan TO matscan;
 GRANT CREATE ON SCHEMA public TO matscan;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO matscan;
-# PostgreSQL URI is postgres://matscan:replace-me@localhost/matscan
+-- PostgreSQL URI is postgres://matscan:replace-me@localhost/matscan
 ```
 
 To run matscan, use the following:
