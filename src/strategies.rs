@@ -121,7 +121,7 @@ impl StrategyPicker {
             return modes_vec
                 .iter()
                 .map(|(mode, _)| *mode)
-                .choose(&mut rand::thread_rng())
+                .choose(&mut rand::rng())
                 .unwrap();
         }
 
