@@ -1,18 +1,11 @@
-use std::{
-    net::Ipv4Addr,
-    time::{Duration, SystemTime},
-};
+use std::net::Ipv4Addr;
 
-use bson::{doc, Document};
 use futures_util::StreamExt;
 use serde::Deserialize;
-use tracing::warn;
+use sqlx::{Postgres, QueryBuilder, Row};
+use tracing::debug;
 
-use crate::{
-    config::RescanConfig,
-    database::{self, Database},
-    scanner::targets::ScanRange,
-};
+use crate::{config::RescanConfig, database::Database, scanner::targets::ScanRange};
 
 #[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -21,90 +14,78 @@ pub enum Sort {
     Oldest,
 }
 
-pub async fn get_ranges(
-    database: &Database,
-    opts: &RescanConfig,
-) -> anyhow::Result<Vec<ScanRange>> {
+pub async fn get_ranges(database: &Database, opts: &RescanConfig) -> eyre::Result<Vec<ScanRange>> {
     let mut ranges = Vec::new();
 
-    let mut filter = doc! {
-        "timestamp": {
-            "$gt": bson::DateTime::from(SystemTime::now() - Duration::from_secs(opts.last_ping_ago_max_secs)),
-            "$lt": bson::DateTime::from(SystemTime::now() - Duration::from_secs(opts.rescan_every_secs))
-        }
-    };
+    let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(
+        "
+    SELECT ip, port FROM servers
+    WHERE
+        last_pinged > NOW() - INTERVAL '$1 seconds'
+        AND last_pinged < NOW() - INTERVAL '$1 seconds'
+    ",
+    );
 
-    for (key, value) in &opts.filter {
-        filter.insert(key, bson::to_bson(&value)?);
+    if !opts.filter_sql.is_empty() {
+        // this could result in sql injection, but the config is considered to be
+        // trusted
+        qb.push(format!(" AND {}", opts.filter_sql));
     }
-
     if let Some(players_online_ago_max_secs) = opts.players_online_ago_max_secs {
-        filter.insert(
-            "lastActive",
-            doc! {
-                "$gt": bson::DateTime::from(SystemTime::now() - Duration::from_secs(players_online_ago_max_secs))
-            },
-        );
+        qb.push(format!(" AND last_time_player_online > NOW() - INTERVAL '{players_online_ago_max_secs} seconds'"));
     }
 
-    println!("filter: {:?}", filter);
-
-    let mut bad_ips = database.shared.lock().bad_ips.to_owned();
-
-    let mut pipeline: Vec<Document> = Vec::new();
-    pipeline.push(doc! { "$match": filter });
-    pipeline.push(doc! { "$project": { "addr": 1, "port": 1, "_id": 0 } });
+    let mut aliased_ips_to_allowed_port = database
+        .shared
+        .lock()
+        .aliased_ips_to_allowed_port
+        .to_owned();
 
     let sort = opts.sort.unwrap_or(Sort::Oldest);
 
     match sort {
         Sort::Random => {
-            pipeline.push(doc! { "$sample": { "size": opts.limit.unwrap_or(10000000) as i64 } });
+            qb.push(" ORDER BY random()");
         }
         Sort::Oldest => {
-            pipeline.push(doc! { "$sort": { "timestamp": 1 } });
-            if let Some(limit) = opts.limit {
-                pipeline.push(doc! { "$limit": limit as i64 });
-            }
+            qb.push(" ORDER BY last_pinged");
         }
     }
+    if let Some(limit) = opts.limit {
+        qb.push(format!(" LIMIT {limit}"));
+    }
 
-    let mut cursor = database
-        .servers_coll()
-        .aggregate(pipeline)
-        .batch_size(2000)
-        .await
-        .unwrap();
+    let sql = qb.into_sql();
+    debug!("Doing rescan query with SQL: {sql}");
+    let mut rows = sqlx::query(&sql)
+        .bind(opts.last_ping_ago_max_secs as i64)
+        .bind(opts.rescan_every_secs as i64)
+        .fetch(&database.pool);
 
-    while let Some(Ok(doc)) = cursor.next().await {
-        let Some(addr) = database::get_u32(&doc, "addr") else {
-            warn!("couldn't get addr for doc: {doc:?}");
-            continue;
-        };
-        let Some(port) = database::get_u32(&doc, "port") else {
-            warn!("couldn't get port for doc: {doc:?}");
-            continue;
-        };
-        // there shouldn't be any bad ips...
-        let addr = Ipv4Addr::from(addr);
-        if bad_ips.contains(&addr) && port != 25565 {
-            println!("we encountered a bad ip while getting ips to rescan :/ deleting {addr} from database.");
-            database
-                .client
-                .database("mcscanner")
-                .collection::<bson::Document>("servers")
-                .delete_many(doc! {
-                    "addr": u32::from(addr),
-                    "port": { "$ne": 25565 }
-                })
+    while let Some(Ok(row)) = rows.next().await {
+        let ip = Ipv4Addr::from_bits(row.get::<i32, _>(0) as u32);
+        let port: u16 = row.get::<i16, _>(1) as u16;
+
+        // there shouldn't be any aliased servers since we should've deleted them, but
+        // this desync can happen if we're running multiple instances of matscan
+        if let Some(&allowed_port) = aliased_ips_to_allowed_port.get(&ip)
+            && port != allowed_port
+        {
+            println!(
+                "We encountered an aliased server while getting servers to rescan. Deleting {ip} from database."
+            );
+            sqlx::query("DELETE FROM servers WHERE ip = $1 AND port != $2")
+                .bind(ip.to_bits() as i32)
+                .bind(allowed_port as i16)
+                .execute(&database.pool)
                 .await?;
-            // this doesn't actually remove it from the bad_ips database, it just makes it
-            // so we don't delete twice
-            bad_ips.remove(&addr);
+            // this doesn't actually remove it from the database, it just makes it so we
+            // don't delete twice
+            aliased_ips_to_allowed_port.remove(&ip);
             continue;
         }
 
-        ranges.push(ScanRange::single(addr, port as u16));
+        ranges.push(ScanRange::single(ip, port as u16));
         if ranges.len() % 1000 == 0 {
             println!("{} ips", ranges.len());
         }

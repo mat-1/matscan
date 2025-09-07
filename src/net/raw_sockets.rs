@@ -1,7 +1,9 @@
 //! borrowed from smoltcp
 
-use std::os::unix::io::{AsRawFd, RawFd};
-use std::{io, mem};
+use std::{
+    io, mem,
+    os::unix::io::{AsRawFd, RawFd},
+};
 
 #[repr(C)]
 #[derive(Debug, Clone)]

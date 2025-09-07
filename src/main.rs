@@ -2,30 +2,29 @@ use std::{
     collections::{HashMap, VecDeque},
     env, fs, path,
     str::FromStr,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{Arc, atomic::AtomicBool},
     thread,
     time::{Duration, Instant},
 };
 
 use dotenv::dotenv;
-use parking_lot::{Mutex, RwLock};
-use tracing::info;
-
 use matscan::{
     config::{Config, RescanConfig},
-    database::Database,
+    database::{Database, migrate_mongo_to_postgres},
     exclude,
     net::tcp::StatelessTcpWriteHalf,
-    processing::{process_pings, SharedData},
+    processing::{SharedData, process_pings},
     scanner::{
+        ScanSession, Scanner, ScannerReceiver,
         protocols::{self},
         targets::{Ipv4Range, Ipv4Ranges, ScanRange, ScanRanges},
-        ScanSession, Scanner, ScannerReceiver,
     },
     strategies::{ScanStrategy, StrategyPicker},
     terminal_colors::*,
     tracing::init_tracing,
 };
+use parking_lot::{Mutex, RwLock};
+use tracing::info;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum StrategyCategory {
@@ -35,14 +34,28 @@ enum StrategyCategory {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> eyre::Result<()> {
     println!("Starting...");
 
     dotenv().ok();
     println!("dotenv");
 
+    let args = env::args().into_iter().collect::<Box<[String]>>();
+    if args.get(1) == Some(&"mongodb-migrate".to_string()) {
+        let mongodb_uri = args
+            .get(2)
+            .expect("mongodb uri must be the second argument");
+        let postgres_uri = args
+            .get(3)
+            .expect("postgres uri must be the third argument");
+
+        migrate_mongo_to_postgres::do_migration(&mongodb_uri, &postgres_uri).await;
+        println!("Done.");
+        return Ok(());
+    }
+
     // first command line argument is the location of the config file
-    let config_file = env::args().nth(1).unwrap_or("config.toml".to_string());
+    let config_file = args.get(1).cloned().unwrap_or("config.toml".to_string());
 
     let config_file_path = path::Path::new(&config_file).canonicalize()?;
     println!(
@@ -68,7 +81,7 @@ async fn main() -> anyhow::Result<()> {
         config.target.protocol_version,
     );
 
-    let database = Database::connect(&config.mongodb_uri).await?;
+    let database = Database::connect(&config.postgres_uri).await?;
     let scanner = Scanner::new(&config);
     let mut strategy_picker = StrategyPicker::default();
 
@@ -101,13 +114,17 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if config.debug.only_scan_addr.is_some() {
-        info!("debug.only_scan_addr is set, setting only enabled strategy category to Normal and ignoring exclude ranges");
+        info!(
+            "debug.only_scan_addr is set, setting only enabled strategy category to Normal and ignoring exclude ranges"
+        );
         strategy_categories = vec![StrategyCategory::Normal];
         exclude_ranges = Ipv4Ranges::default();
     }
 
     if strategy_categories.is_empty() {
-        panic!("Scanner, rescanner, and fingerprinting are all disabled in the config. You should probably at least enable scanner.");
+        panic!(
+            "Scanner, rescanner, and fingerprinting are all disabled in the config. You should probably at least enable scanner."
+        );
     }
 
     // the protocol set here will be overwritten later so it doesn't actually matter
@@ -119,7 +136,7 @@ async fn main() -> anyhow::Result<()> {
         queue: VecDeque::new(),
         // we use the cache to check if someone just joined a server, so this
         // will always stay empty if snipe mode is off
-        cached_servers: HashMap::new(),
+        cached_players_for_sniping: HashMap::new(),
 
         total_new: 0,
         total_new_on_default_port: 0,
@@ -272,9 +289,9 @@ async fn perform_scan(
         ctx.database
             .shared
             .lock()
-            .bad_ips
+            .aliased_ips_to_allowed_port
             .clone()
-            .into_iter()
+            .into_keys()
             .map(Ipv4Range::single)
             .collect::<Vec<_>>(),
     );
@@ -398,7 +415,9 @@ fn process_results(
         // (we add 30 seconds so if a strategy finishes very quickly it's not super
         // biased towards it)
         let score = (unnormalized_score * 3600.0 / (elapsed.as_secs_f64() + 30.)).round() as usize;
-        println!("got score {score} from {unnormalized_score} = {total_new_score} + {revived_score} + {total_new_on_default_port_score}");
+        println!(
+            "got score {score} from {unnormalized_score} = {total_new_score} + {revived_score} + {total_new_on_default_port_score}"
+        );
         strategy_picker.update_strategy(strategy, score);
     } else {
         let percent_replied = (results as f64 / packets_sent as f64) * 100.0;
@@ -416,7 +435,7 @@ async fn maybe_rescan_with_config(
     database: &Database,
     ranges: &mut ScanRanges,
     rescan: &RescanConfig,
-) -> anyhow::Result<()> {
+) -> eyre::Result<()> {
     if rescan.enabled {
         ranges.extend(
             matscan::strategies::rescan::get_ranges(database, rescan)

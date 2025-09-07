@@ -4,12 +4,12 @@ pub mod throttle;
 
 use std::{
     borrow::BorrowMut,
-    collections::{hash_map::DefaultHasher, HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::DefaultHasher},
     hash::{Hash, Hasher},
     net::SocketAddrV4,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     thread,
     time::{Duration, Instant},
@@ -21,17 +21,16 @@ use pnet::packet::tcp::TcpFlags;
 use serde::Deserialize;
 use tracing::{trace, warn};
 
+use self::{
+    protocols::Protocol,
+    targets::{ScanRanges, StaticScanRanges},
+    throttle::Throttler,
+};
 use crate::{
     config::Config,
     net::tcp::{StatelessTcp, StatelessTcpWriteHalf},
     processing::SharedData,
     scanner::protocols::{ParseResponseError, Response},
-};
-
-use self::{
-    protocols::Protocol,
-    targets::{ScanRanges, StaticScanRanges},
-    throttle::Throttler,
 };
 
 pub struct Scanner {
@@ -162,8 +161,7 @@ impl ScannerReceiver {
                     } else {
                         trace!(
                             "FIN with no connection, probably already forgotten by us {}:{}",
-                            ipv4.source,
-                            tcp.source
+                            ipv4.source, tcp.source
                         );
                         self.scanner.client.write.send_ack(
                             address,
@@ -186,7 +184,9 @@ impl ScannerReceiver {
                     let original_cookie = cookie(&address, self.scanner.seed);
                     let expected_ack = original_cookie + 1;
                     if ack_number != expected_ack {
-                        trace!("cookie mismatch for {address} (expected {expected_ack}, got {ack_number})");
+                        trace!(
+                            "cookie mismatch for {address} (expected {expected_ack}, got {ack_number})"
+                        );
                         continue;
                     }
 
@@ -287,7 +287,9 @@ impl ScannerReceiver {
 
                         let expected_ack = original_cookie.wrapping_add(cookie_offset);
                         if actual_ack != expected_ack {
-                            trace!("cookie mismatch when reading data for {address} (expected {expected_ack}, got {actual_ack}, initial was {original_cookie})");
+                            trace!(
+                                "cookie mismatch when reading data for {address} (expected {expected_ack}, got {actual_ack}, initial was {original_cookie})"
+                            );
                             continue;
                         }
 
@@ -318,8 +320,7 @@ impl ScannerReceiver {
                                 connections_started += 1;
                                 trace!(
                                     "connection #{connections_started} started and ended immediately (with {}:{})",
-                                    ipv4.source,
-                                    tcp.source
+                                    ipv4.source, tcp.source
                                 );
                             }
 
@@ -364,7 +365,10 @@ impl ScannerReceiver {
                                             },
                                         );
                                         connections_started += 1;
-                                        trace!("connection #{connections_started} started (with {}:{})", ipv4.source, tcp.source);
+                                        trace!(
+                                            "connection #{connections_started} started (with {}:{})",
+                                            ipv4.source, tcp.source
+                                        );
                                     }
 
                                     let conn = self.scanner.conns.get(&address).unwrap();
@@ -427,11 +431,6 @@ pub struct ConnState {
     fin_sent: bool,
 }
 
-pub struct PingResponse {
-    pub target: SocketAddrV4,
-    pub data: String,
-}
-
 impl ScanSession {
     pub fn new(ranges: ScanRanges) -> Self {
         Self {
@@ -488,7 +487,9 @@ impl ScanSession {
                 } else {
                     format!("{} pps", packets_per_second.round() as u64)
                 };
-                println!("packets_sent = {packets_sent} ({packets_per_info}, throttler estimate: {throttler_packets_per_info})");
+                println!(
+                    "packets_sent = {packets_sent} ({packets_per_info}, throttler estimate: {throttler_packets_per_info})"
+                );
 
                 packets_sent_last_print = packets_sent;
                 last_print_time = Instant::now();

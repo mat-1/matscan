@@ -6,7 +6,7 @@ use crate::{database::Database, scanner::targets::ScanRange};
 ///
 /// Returns a Vec for consistency with the other strategies, even though it will
 /// only ever contain one element.
-pub async fn get_ranges(_database: &mut Database) -> anyhow::Result<Vec<ScanRange>> {
+pub async fn get_ranges(_database: &mut Database) -> eyre::Result<Vec<ScanRange>> {
     let top_port = 25565;
 
     let ranges = vec![ScanRange::single_port(

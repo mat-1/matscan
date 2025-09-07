@@ -5,18 +5,12 @@ use std::{
     time::SystemTime,
 };
 
-use async_trait::async_trait;
-use bson::{doc, Bson};
+use bson::{Bson, doc};
 use parking_lot::Mutex;
 use regex::Regex;
 
-use crate::{
-    config::Config,
-    database::{bulk_write::BulkUpdate, Database},
-    scanner::protocols,
-};
-
 use super::{ProcessableProtocol, SharedData};
+use crate::{config::Config, database::Database, scanner::protocols};
 
 static VANILLA_ERROR_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"java\.io\.IOException: Packet (?:\d+|login)\/\d+ \(([^)]+)\)").unwrap()
@@ -33,16 +27,15 @@ enum ServerType {
     Unknown,
 }
 
-#[async_trait]
 impl ProcessableProtocol for protocols::MinecraftFingerprinting {
-    fn process(
-        _shared: &Arc<Mutex<SharedData>>,
-        _config: &Config,
+    async fn handle_response(
+        _shared: Arc<Mutex<SharedData>>,
+        _config: Arc<Config>,
         target: SocketAddrV4,
-        data: &[u8],
-        _database: &Database,
-    ) -> Option<BulkUpdate> {
-        let data_string = String::from_utf8_lossy(data);
+        data: Box<[u8]>,
+        _db: Database,
+    ) -> eyre::Result<()> {
+        let data_string = String::from_utf8_lossy(&data);
         let server_type = if let Some(packet_name) = VANILLA_ERROR_REGEX
             .captures(&data_string)
             .and_then(|c| c.get(1))
@@ -86,14 +79,8 @@ impl ProcessableProtocol for protocols::MinecraftFingerprinting {
             );
         }
 
-        Some(BulkUpdate {
-            query: doc! {
-                "addr": { "$eq": u32::from(*target.ip()) },
-                "port": { "$eq": target.port() as u32 }
-            },
-            update: doc! { "$set": mongo_update },
-            options: None,
-        })
+        // TODO: re-implement active fingerprinting again
+        Ok(())
     }
 }
 

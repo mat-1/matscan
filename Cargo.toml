@@ -1,14 +1,13 @@
 [package]
 name = "matscan"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 azalea-chat = { git = "https://github.com/azalea-rs/azalea", default-features = false }
 bson = "2.11.0"
-anyhow = "1.0.86"
 default-net = "0.22.0"
 dotenv = "0.15.0"
 libc = "0.2.158"
@@ -33,16 +32,21 @@ reqwest = { version = "0.12.7", default-features = false, features = [
 parking_lot = "0.12.3"
 enum-utils = "0.1.2"
 flate2 = "1.0.32"
-async-trait = "0.1.81"
-mongodb = "3.0.1"
 tracing-appender = "0.2.3"
-# sqlx = { version = "0.8.6", features = [
-#     "runtime-tokio",
-#     "postgres",
-#     "tls-rustls",
-#     "chrono",
-#     "uuid",
-# ] }
+sqlx = { version = "0.8.6", features = [
+    "runtime-tokio",
+    "postgres",
+    "tls-rustls",
+    "chrono",
+    "uuid",
+] }
+rustc-hash = "2.1.1"
+mongodb = "3.3.0"
+eyre = "0.6.12"
+uuid = "1.18.1"
+chrono = "0.4.41"
+simd-json = "0.15.1"
+sha2 = "0.10.9"
 
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }

@@ -8,7 +8,7 @@ use crate::scanner::targets::Ipv4Range;
 #[derive(Debug)]
 pub struct AsnRanges(pub Vec<(Ipv4Range, u32)>);
 
-pub async fn download() -> anyhow::Result<AsnRanges> {
+pub async fn download() -> eyre::Result<AsnRanges> {
     let client = reqwest::Client::new();
 
     println!("Downloading ASN data...");
@@ -41,7 +41,7 @@ pub async fn download() -> anyhow::Result<AsnRanges> {
     Ok(AsnRanges(ranges))
 }
 
-pub async fn get() -> anyhow::Result<&'static AsnRanges> {
+pub async fn get() -> eyre::Result<&'static AsnRanges> {
     static ASN_RANGES: OnceLock<AsnRanges> = OnceLock::new();
 
     if let Some(ranges) = ASN_RANGES.get() {

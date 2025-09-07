@@ -1,16 +1,16 @@
 use std::{fs, net::Ipv4Addr, str::FromStr};
 
+use eyre::eyre;
+
 use crate::scanner::targets::{Ipv4Range, Ipv4Ranges};
 
-use anyhow::anyhow;
-
-pub fn parse_file(input: &str) -> anyhow::Result<Ipv4Ranges> {
+pub fn parse_file(input: &str) -> eyre::Result<Ipv4Ranges> {
     let input = fs::read_to_string(input)?;
 
     parse(&input)
 }
 
-fn parse(input: &str) -> anyhow::Result<Ipv4Ranges> {
+fn parse(input: &str) -> eyre::Result<Ipv4Ranges> {
     let mut ranges = Vec::new();
 
     for line in input.lines() {
@@ -29,7 +29,7 @@ fn parse(input: &str) -> anyhow::Result<Ipv4Ranges> {
         let line = line.split('#').next().unwrap().trim();
 
         if is_slash && is_hypen {
-            return Err(anyhow!(
+            return Err(eyre!(
                 "Invalid exclude range: {} (cannot contain both - and /)",
                 line
             ));
@@ -64,7 +64,7 @@ fn parse(input: &str) -> anyhow::Result<Ipv4Ranges> {
             let ip_end = Ipv4Addr::from_str(ip_end)?;
 
             if ip_start > ip_end {
-                return Err(anyhow!(
+                return Err(eyre!(
                     "Invalid exclude range: {} (start cannot be greater than end)",
                     line
                 ));

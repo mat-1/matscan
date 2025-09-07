@@ -10,6 +10,7 @@ strategies.json
 servers.txt
 out.txt
 /logs
+.sqlx
 
 # profiling
 perf.data

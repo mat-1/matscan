@@ -2,13 +2,12 @@ use std::{collections::HashMap, fs, str::FromStr};
 
 use rand::prelude::*;
 
+use self::rescan::Sort;
 use crate::{
     config::{Config, RescanConfig},
     database::Database,
     scanner::targets::ScanRange,
 };
-
-use self::rescan::Sort;
 
 pub mod fingerprint;
 pub mod rescan;
@@ -164,13 +163,13 @@ impl ScanStrategy {
         &self,
         database: &mut Database,
         config: &Config,
-    ) -> anyhow::Result<Vec<ScanRange>> {
+    ) -> eyre::Result<Vec<ScanRange>> {
         if let Some(only_scan_addr) = config.debug.only_scan_addr {
             let ip = *only_scan_addr.ip();
             let port = only_scan_addr.port();
             return Ok(vec![ScanRange {
-                addr_start: ip,
-                addr_end: ip,
+                ip_start: ip,
+                ip_end: ip,
                 port_start: port,
                 port_end: port,
             }]);

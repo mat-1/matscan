@@ -7,22 +7,21 @@ use std::{
 use pnet::{
     datalink::{self, Channel, DataLinkReceiver, NetworkInterface},
     packet::{
+        FromPacket, Packet,
         ethernet::EthernetPacket,
         ip::IpNextHeaderProtocols::{self},
         ipv4::{Ipv4, Ipv4Packet},
         tcp::{Tcp, TcpFlags, TcpOption, TcpPacket},
-        FromPacket, Packet,
     },
     util::MacAddr,
 };
 use tracing::{trace, warn};
 
-use crate::{config::Config, net::tcp_template::TemplatePacketRepr, scanner::SourcePort};
-
 use super::{
     raw_sockets::RawSocket,
     tcp_template::{self, TemplatePacket},
 };
+use crate::{config::Config, net::tcp_template::TemplatePacketRepr, scanner::SourcePort};
 
 pub const ETH_HEADER_LEN: usize = 14;
 
@@ -313,9 +312,7 @@ impl StatelessTcpWriteHalf {
         }
         trace!(
             "sending packet to {}:{} with flags: {:?}",
-            repr.dest_addr,
-            repr.dest_port,
-            repr.flags
+            repr.dest_addr, repr.dest_port, repr.flags
         );
 
         let packet = build_tcp_packet(repr, self.gateway_mac, self.interface_mac, source_addr);

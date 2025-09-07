@@ -5,15 +5,15 @@ use std::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScanRange {
-    pub addr_start: Ipv4Addr,
-    pub addr_end: Ipv4Addr,
+    pub ip_start: Ipv4Addr,
+    pub ip_end: Ipv4Addr,
     pub port_start: u16,
     pub port_end: u16,
 }
 
 impl ScanRange {
     pub fn count_addresses(&self) -> usize {
-        (u32::from(self.addr_end) as u64 - u32::from(self.addr_start) as u64 + 1) as usize
+        (u32::from(self.ip_end) as u64 - u32::from(self.ip_start) as u64 + 1) as usize
     }
 
     pub fn count_ports(&self) -> usize {
@@ -30,31 +30,31 @@ impl ScanRange {
         let port_count = self.count_ports();
         let addr_index = index / port_count;
         let port_index = index % port_count;
-        let addr = u32::from(self.addr_start) + addr_index as u32;
+        let addr = u32::from(self.ip_start) + addr_index as u32;
         let port = self.port_start + port_index as u16;
         SocketAddrV4::new(Ipv4Addr::from(addr), port)
     }
 
-    pub fn single(addr: Ipv4Addr, port: u16) -> Self {
+    pub fn single(ip: Ipv4Addr, port: u16) -> Self {
         Self {
-            addr_start: addr,
-            addr_end: addr,
+            ip_start: ip,
+            ip_end: ip,
             port_start: port,
             port_end: port,
         }
     }
     pub fn single_port(addr_start: Ipv4Addr, addr_end: Ipv4Addr, port: u16) -> Self {
         Self {
-            addr_start,
-            addr_end,
+            ip_start: addr_start,
+            ip_end: addr_end,
             port_start: port,
             port_end: port,
         }
     }
     pub fn single_address(addr: Ipv4Addr, port_start: u16, port_end: u16) -> Self {
         Self {
-            addr_start: addr,
-            addr_end: addr,
+            ip_start: addr,
+            ip_end: addr,
             port_start,
             port_end,
         }
@@ -77,7 +77,7 @@ impl ScanRanges {
     /// to.
     pub fn extend(&mut self, ranges: Vec<ScanRange>) {
         self.ranges.extend(ranges);
-        self.ranges.sort_by_key(|r| r.addr_start);
+        self.ranges.sort_by_key(|r| r.ip_start);
     }
 
     /// Remove the given ranges from this set of ranges. Returns the ranges that
@@ -99,14 +99,14 @@ impl ScanRanges {
         };
 
         loop {
-            if scan_range.addr_end < exclude_range.start {
+            if scan_range.ip_end < exclude_range.start {
                 // scan_range is before exclude_range
                 ranges.push(scan_range);
                 scan_range = match scan_ranges.next() {
                     Some(scan_range) => scan_range,
                     None => break,
                 };
-            } else if scan_range.addr_start > exclude_range.end {
+            } else if scan_range.ip_start > exclude_range.end {
                 // scan_range is after exclude_range
                 exclude_range = match exclude_ranges.next() {
                     Some(exclude_range) => exclude_range,
@@ -115,46 +115,46 @@ impl ScanRanges {
                         break;
                     }
                 };
-            } else if scan_range.addr_start < exclude_range.start
-                && scan_range.addr_end > exclude_range.end
+            } else if scan_range.ip_start < exclude_range.start
+                && scan_range.ip_end > exclude_range.end
             {
                 // scan_range contains exclude_range
                 ranges.push(ScanRange {
-                    addr_start: scan_range.addr_start,
-                    addr_end: Ipv4Addr::from(u32::from(exclude_range.start) - 1),
+                    ip_start: scan_range.ip_start,
+                    ip_end: Ipv4Addr::from(u32::from(exclude_range.start) - 1),
                     port_start: scan_range.port_start,
                     port_end: scan_range.port_end,
                 });
                 removed_ranges.push(*exclude_range);
-                scan_range.addr_start = Ipv4Addr::from(u32::from(exclude_range.end) + 1);
-            } else if scan_range.addr_start < exclude_range.start {
+                scan_range.ip_start = Ipv4Addr::from(u32::from(exclude_range.end) + 1);
+            } else if scan_range.ip_start < exclude_range.start {
                 // cut off the right side
                 ranges.push(ScanRange {
-                    addr_start: scan_range.addr_start,
-                    addr_end: Ipv4Addr::from(u32::from(exclude_range.start) - 1),
+                    ip_start: scan_range.ip_start,
+                    ip_end: Ipv4Addr::from(u32::from(exclude_range.start) - 1),
                     port_start: scan_range.port_start,
                     port_end: scan_range.port_end,
                 });
                 removed_ranges.push(Ipv4Range {
                     start: exclude_range.start,
-                    end: scan_range.addr_end,
+                    end: scan_range.ip_end,
                 });
                 scan_range = match scan_ranges.next() {
                     Some(scan_range) => scan_range,
                     None => break,
                 };
-            } else if scan_range.addr_end > exclude_range.end {
+            } else if scan_range.ip_end > exclude_range.end {
                 // cut off the left side
                 removed_ranges.push(Ipv4Range {
-                    start: scan_range.addr_start,
+                    start: scan_range.ip_start,
                     end: exclude_range.end,
                 });
-                scan_range.addr_start = Ipv4Addr::from(u32::from(exclude_range.end) + 1);
+                scan_range.ip_start = Ipv4Addr::from(u32::from(exclude_range.end) + 1);
             } else {
                 // scan_range is contained within exclude_range
                 removed_ranges.push(Ipv4Range {
-                    start: scan_range.addr_start,
-                    end: scan_range.addr_end,
+                    start: scan_range.ip_start,
+                    end: scan_range.ip_end,
                 });
                 scan_range = match scan_ranges.next() {
                     Some(scan_range) => scan_range,

@@ -7,7 +7,7 @@ use crate::scanner::SourcePort;
 #[derive(Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
-    pub mongodb_uri: String,
+    pub postgres_uri: String,
     pub rate: u64,
 
     /// The number of seconds to sleep after each scan. You can set this to 0
@@ -106,7 +106,7 @@ pub struct RescanConfig {
 
     pub limit: Option<usize>,
     #[serde(default)]
-    pub filter: toml::Table,
+    pub filter_sql: String,
     #[serde(default)]
     pub sort: Option<crate::strategies::rescan::Sort>,
 

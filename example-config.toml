@@ -1,6 +1,6 @@
 # see src/config.rs for all options and descriptions
 
-mongodb_uri = 'mongodb://REPLACEME'
+postgres_uri = 'postgres://postgres@localhost/matscan'
 
 # packets per second
 rate = 100_000
