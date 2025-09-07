@@ -28,9 +28,7 @@ impl CacheItem {
         let cache_duration = TimeDelta::hours(24);
 
         // first time
-        let Some(last_updated) = self.last_updated else {
-            return None;
-        };
+        let last_updated = self.last_updated?;
         // cache expired
         if last_updated.elapsed().as_secs_f64() > cache_duration.as_seconds_f64() {
             return None;
@@ -123,7 +121,7 @@ impl Database {
             let ip = Ipv4Addr::from_bits(row.get::<i32, _>(0) as u32);
             let port = row.get::<i16, _>(1) as u16;
 
-            servers.push(SocketAddrV4::new(Ipv4Addr::from(ip), port as u16));
+            servers.push(SocketAddrV4::new(ip, port));
 
             if servers.len() % 10000 == 0 {
                 info!("Collected {} servers", servers.len());

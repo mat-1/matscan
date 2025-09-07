@@ -63,16 +63,8 @@ pub async fn do_migration(mongodb_uri: &str, postgres_uri: &str) {
             .map(String::from);
         let version_protocol = version.and_then(|v| v.get_i32("protocol")).ok();
 
-        let online_players = players
-            .as_ref()
-            .ok()
-            .and_then(|v| v.get_i32("online").ok())
-            .map(|v| v as i32);
-        let max_players = players
-            .as_ref()
-            .ok()
-            .and_then(|v| v.get_i32("max").ok())
-            .map(|v| v as i32);
+        let online_players = players.as_ref().ok().and_then(|v| v.get_i32("online").ok());
+        let max_players = players.as_ref().ok().and_then(|v| v.get_i32("max").ok());
 
         let is_online_mode = doc.get_bool("onlineMode").ok();
         let mut player_sample = Vec::new();
@@ -201,7 +193,7 @@ pub async fn do_migration(mongodb_uri: &str, postgres_uri: &str) {
         });
         tasks.push_back(task);
 
-        while tasks.len() >= 1 {
+        while tasks.len() >= 100 {
             tasks.pop_front().unwrap().await.unwrap();
         }
     }

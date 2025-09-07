@@ -40,7 +40,7 @@ async fn main() -> eyre::Result<()> {
     dotenv().ok();
     println!("dotenv");
 
-    let args = env::args().into_iter().collect::<Box<[String]>>();
+    let args = env::args().collect::<Box<[String]>>();
     if args.get(1) == Some(&"mongodb-migrate".to_string()) {
         let mongodb_uri = args
             .get(2)
@@ -49,7 +49,7 @@ async fn main() -> eyre::Result<()> {
             .get(3)
             .expect("postgres uri must be the third argument");
 
-        migrate_mongo_to_postgres::do_migration(&mongodb_uri, &postgres_uri).await;
+        migrate_mongo_to_postgres::do_migration(mongodb_uri, postgres_uri).await;
         println!("Done.");
         return Ok(());
     }

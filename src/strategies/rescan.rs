@@ -17,14 +17,15 @@ pub enum Sort {
 pub async fn get_ranges(database: &Database, opts: &RescanConfig) -> eyre::Result<Vec<ScanRange>> {
     let mut ranges = Vec::new();
 
-    let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(
+    let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!(
         "
-    SELECT ip, port FROM servers
-    WHERE
-        last_pinged > NOW() - INTERVAL '$1 seconds'
-        AND last_pinged < NOW() - INTERVAL '$1 seconds'
-    ",
-    );
+        SELECT ip, port FROM servers
+        WHERE
+            last_pinged > NOW() - INTERVAL '{} seconds'
+            AND last_pinged < NOW() - INTERVAL '{} seconds'
+        ",
+        opts.last_ping_ago_max_secs as i64, opts.rescan_every_secs as i64
+    ));
 
     if !opts.filter_sql.is_empty() {
         // this could result in sql injection, but the config is considered to be
@@ -57,10 +58,7 @@ pub async fn get_ranges(database: &Database, opts: &RescanConfig) -> eyre::Resul
 
     let sql = qb.into_sql();
     debug!("Doing rescan query with SQL: {sql}");
-    let mut rows = sqlx::query(&sql)
-        .bind(opts.last_ping_ago_max_secs as i64)
-        .bind(opts.rescan_every_secs as i64)
-        .fetch(&database.pool);
+    let mut rows = sqlx::query(&sql).fetch(&database.pool);
 
     while let Some(Ok(row)) = rows.next().await {
         let ip = Ipv4Addr::from_bits(row.get::<i32, _>(0) as u32);
@@ -85,7 +83,7 @@ pub async fn get_ranges(database: &Database, opts: &RescanConfig) -> eyre::Resul
             continue;
         }
 
-        ranges.push(ScanRange::single(ip, port as u16));
+        ranges.push(ScanRange::single(ip, port));
         if ranges.len() % 1000 == 0 {
             println!("{} ips", ranges.len());
         }

@@ -362,12 +362,11 @@ impl StatelessTcpReadHalf {
                         packet.to_vec()
                     };
 
-                    if let Some(ipv4) = Ipv4Packet::new(&payload_for_ipv4) {
-                        if let Some(tcp) = process_ipv4(&ipv4) {
-                            if self.source_port.contains(tcp.destination) {
-                                return Some((ipv4.from_packet(), tcp));
-                            }
-                        }
+                    if let Some(ipv4) = Ipv4Packet::new(&payload_for_ipv4)
+                        && let Some(tcp) = process_ipv4(&ipv4)
+                        && self.source_port.contains(tcp.destination)
+                    {
+                        return Some((ipv4.from_packet(), tcp));
                     }
                 }
                 Err(_) => return None,

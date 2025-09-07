@@ -144,12 +144,10 @@ pub fn parse_ping_response_json(d: &[u8]) -> eyre::Result<PingResponse> {
         .unwrap_or_default();
 
     let version = v.get("version");
-    let version_name = version
-        .get_str("name")
-        .map(|s| sanitize_text_for_postgres(s));
+    let version_name = version.get_str("name").map(sanitize_text_for_postgres);
     let version_protocol = version.get_i32("protocol");
 
-    let favicon = v.get_str("favicon").map(|s| sanitize_text_for_postgres(s));
+    let favicon = v.get_str("favicon").map(sanitize_text_for_postgres);
     // filter out bad favicons
     let favicon = favicon.filter(|f| f.starts_with("data:image/png;base64,"));
     let favicon_hash = favicon.as_ref().map(|s| make_favicon_hash(s));
@@ -178,8 +176,7 @@ pub fn parse_ping_response_json(d: &[u8]) -> eyre::Result<PingResponse> {
         .map(|a| {
             a.iter()
                 .filter_map(|v| {
-                    let Some(name) = v.get_str("name").map(|s| sanitize_text_for_postgres(s))
-                    else {
+                    let Some(name) = v.get_str("name").map(sanitize_text_for_postgres) else {
                         // name is required
                         is_fake_sample = true;
                         return None;
@@ -224,18 +221,14 @@ pub fn parse_ping_response_json(d: &[u8]) -> eyre::Result<PingResponse> {
     let forge_data = v.get("forgeData");
     let forgedata_fml_network_version = forge_data.get_i32("fmlNetworkVersion");
     let mod_info = v.get("modinfo");
-    let modinfo_type = mod_info
-        .get_str("type")
-        .map(|s| sanitize_text_for_postgres(s));
+    let modinfo_type = mod_info.get_str("type").map(sanitize_text_for_postgres);
     let is_modded = v.get_bool("isModded");
     let modpack_data = v.get("modpackData");
     let modpackdata_project_id = modpack_data.get_i32("projectID");
-    let modpackdata_name = modpack_data
-        .get_str("name")
-        .map(|s| sanitize_text_for_postgres(s));
+    let modpackdata_name = modpack_data.get_str("name").map(sanitize_text_for_postgres);
     let modpackdata_version = modpack_data
         .get_str("version")
-        .map(|s| sanitize_text_for_postgres(s));
+        .map(sanitize_text_for_postgres);
 
     Ok(PingResponse {
         description_json,
@@ -276,25 +269,25 @@ pub async fn insert_server_to_db(
     {
         let mut shared = db.shared.lock();
         let ips_with_same_hash = shared.ip_to_hash_and_ports.get_mut(target.ip());
-        if let Some((data, previously_checked_ports)) = ips_with_same_hash {
-            if !previously_checked_ports.contains(&target.port()) {
-                if let Some(count) = &mut data.count {
-                    let this_server_hash = make_ping_response_hash(r)?;
+        if let Some((data, previously_checked_ports)) = ips_with_same_hash
+            && !previously_checked_ports.contains(&target.port())
+        {
+            if let Some(count) = &mut data.count {
+                let this_server_hash = make_ping_response_hash(r)?;
 
-                    if this_server_hash == data.hash {
-                        *count += 1;
-                        previously_checked_ports.insert(target.port());
+                if this_server_hash == data.hash {
+                    *count += 1;
+                    previously_checked_ports.insert(target.port());
 
-                        if *count >= 100 {
-                            // too many servers with the same hash... add to bad ips!
-                            println!("found a new bad ip: {} :(", target.ip());
-                            // we call add_to_ips_with_aliased_servers later
-                            is_aliased_server = true;
-                        }
-                    } else {
-                        // this server has a different hash than the other servers with the same IP
-                        data.count = None;
+                    if *count >= 100 {
+                        // too many servers with the same hash... add to bad ips!
+                        println!("found a new bad ip: {} :(", target.ip());
+                        // we call add_to_ips_with_aliased_servers later
+                        is_aliased_server = true;
                     }
+                } else {
+                    // this server has a different hash than the other servers with the same IP
+                    data.count = None;
                 }
             }
         } else {
@@ -314,7 +307,7 @@ pub async fn insert_server_to_db(
 
     if is_aliased_server {
         let db = db.clone();
-        let target = target.clone();
+        let target = *target;
         tokio::spawn(async move {
             let _ = db
                 // for now, assume 25565 is the only allowed port. might change this in the future.

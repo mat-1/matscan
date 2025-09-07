@@ -43,7 +43,7 @@ impl Database {
     pub async fn connect(postgres_uri: &str) -> eyre::Result<Self> {
         let pool = sqlx::postgres::PgPoolOptions::new()
             .max_connections(100)
-            .connect(&postgres_uri)
+            .connect(postgres_uri)
             .await?;
         sqlx::migrate!().run(&pool).await?;
 
@@ -130,7 +130,7 @@ impl Database {
         const ALLOWED_PLAYER_LIMIT: i64 = 1000;
         const KEEP_PLAYER_COUNT: i64 = 500;
 
-        assert!(ALLOWED_PLAYER_LIMIT > KEEP_PLAYER_COUNT);
+        const _: () = assert!(ALLOWED_PLAYER_LIMIT > KEEP_PLAYER_COUNT);
 
         let mut rows = sqlx::query(
             "

@@ -85,12 +85,11 @@ pub fn generate_passive_fingerprint(data: &str) -> eyre::Result<PassiveMinecraft
             field_order = Some(field_order_string);
         }
 
-        if let Some(players) = data.get("players").and_then(|s| s.as_object()) {
-            if let Some(sample) = players.get("sample").and_then(|s| s.as_array()) {
-                if sample.is_empty() {
-                    empty_sample = true;
-                }
-            }
+        if let Some(players) = data.get("players").and_then(|s| s.as_object())
+            && let Some(sample) = players.get("sample").and_then(|s| s.as_array())
+            && sample.is_empty()
+        {
+            empty_sample = true;
         }
     }
 
