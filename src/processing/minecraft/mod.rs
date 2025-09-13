@@ -21,7 +21,7 @@ use uuid::Uuid;
 use super::{ProcessableProtocol, SharedData};
 use crate::{
     config::Config,
-    database::{CachedIpHash, Database, sanitize_text_for_postgres},
+    database::{CachedIpHash, Database, PgU16, PgU32, sanitize_text_for_postgres},
     processing::minecraft::{
         passive_fingerprint::{PassiveMinecraftFingerprint, generate_passive_fingerprint},
         snipe::maybe_log_sniped,
@@ -335,8 +335,8 @@ pub async fn insert_server_to_db(
 
     let mut qb = InsertServerQueryBuilder::new();
     let now = chrono::Utc::now();
-    qb.field("ip", target.ip().to_bits() as i32);
-    qb.field("port", target.port() as i16);
+    qb.field("ip", PgU32(target.ip().to_bits()));
+    qb.field("port", PgU16(target.port()));
     qb.field("last_pinged", now);
     qb.field("is_online_mode", r.is_online_mode);
     qb.field("favicon_hash", r.favicon_hash);
@@ -383,8 +383,8 @@ pub async fn insert_server_to_db(
             "INSERT INTO server_players (server_ip, server_port, uuid, username, online_mode, last_seen) ",
         );
         query_builder.push_values(&r.player_sample, |mut b, player| {
-            b.push_bind(target.ip().to_bits() as i32)
-                .push_bind(target.port() as i16)
+            b.push_bind(PgU32(target.ip().to_bits()))
+                .push_bind(PgU16(target.port()))
                 .push_bind(player.uuid)
                 .push_bind(player.name.clone())
                 .push_bind(match player.uuid.get_version_num() {

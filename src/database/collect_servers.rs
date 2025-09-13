@@ -9,7 +9,7 @@ use rustc_hash::FxHashMap;
 use sqlx::Row;
 use tracing::info;
 
-use crate::database::Database;
+use crate::database::{Database, PgU16, PgU32};
 
 #[derive(Default)]
 pub struct CollectServersCache {
@@ -118,8 +118,8 @@ impl Database {
 
         let mut servers = Vec::new();
         while let Some(row) = rows.try_next().await? {
-            let ip = Ipv4Addr::from_bits(row.get::<i32, _>(0) as u32);
-            let port = row.get::<i16, _>(1) as u16;
+            let ip = Ipv4Addr::from_bits(row.get::<PgU32, _>(0).0);
+            let port = row.get::<PgU16, _>(1).0;
 
             servers.push(SocketAddrV4::new(ip, port));
 

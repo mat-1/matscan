@@ -2,7 +2,7 @@ use std::{collections::HashMap, net::SocketAddrV4, sync::Arc};
 
 use parking_lot::Mutex;
 
-use crate::{config::Config, database::Database, processing::{SharedData, minecraft::{ANONYMOUS_PLAYER_NAME, PingResponse, }}};
+use crate::{config::Config, database::{Database, PgU16, PgU32}, processing::{SharedData, minecraft::{ANONYMOUS_PLAYER_NAME, PingResponse, }}};
 
 pub fn maybe_log_sniped(
     shared: &Arc<Mutex<SharedData>>,
@@ -98,8 +98,8 @@ pub fn maybe_log_sniped(
                             "SELECT FROM server_players WHERE username = '$1' AND server_ip = $2 AND server_port = $3 LIMIT 1",
                         )
                             .bind(ANONYMOUS_PLAYER_NAME)
-                            .bind(target.ip().to_bits() as i32)
-                            .bind(target.port() as i16).fetch_optional(&database.pool).await {
+                            .bind(PgU32(target.ip().to_bits()))
+                            .bind(PgU16(target.port())).fetch_optional(&database.pool).await {
                                 let has_historical_anon = has_historical_anon_res.is_some();
                                 if !has_historical_anon {
                                     send_to_webhook(

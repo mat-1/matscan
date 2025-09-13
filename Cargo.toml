@@ -33,13 +33,7 @@ parking_lot = "0.12.4"
 enum-utils = "0.1.2"
 flate2 = "1.1.2"
 tracing-appender = "0.2.3"
-sqlx = { version = "0.8.6", features = [
-    "runtime-tokio",
-    "postgres",
-    "tls-rustls",
-    "chrono",
-    "uuid",
-] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio", "postgres", "tls-rustls", "chrono", "uuid"] }
 rustc-hash = "2.1.1"
 mongodb = "3.3.0"
 eyre = "0.6.12"

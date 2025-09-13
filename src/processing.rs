@@ -16,7 +16,10 @@ use sqlx::Row;
 use tokio::time::sleep;
 
 use crate::{
-    config::Config, database::Database, processing::minecraft::SamplePlayer, terminal_colors::*,
+    config::Config,
+    database::{Database, PgU16, PgU32},
+    processing::minecraft::SamplePlayer,
+    terminal_colors::*,
 };
 
 pub struct SharedData {
@@ -132,8 +135,8 @@ async fn handle_response_futures(
         tasks.push(async move {
             let mut processed_server_status = if let Ok(row) =
                 sqlx::query("SELECT last_pinged FROM servers WHERE ip = $1 AND port = $2")
-                    .bind(addr.ip().to_bits() as i32)
-                    .bind(addr.port() as i16)
+                    .bind(PgU32(addr.ip().to_bits()))
+                    .bind(PgU16(addr.port()))
                     .fetch_one(&db.pool)
                     .await
             {

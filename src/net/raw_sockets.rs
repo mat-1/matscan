@@ -7,13 +7,13 @@ use std::{
 
 #[repr(C)]
 #[derive(Debug, Clone)]
-struct ifreq {
+struct Ifreq {
     ifr_name: [libc::c_char; libc::IF_NAMESIZE],
     ifr_data: libc::c_int, /* ifr_ifindex or ifr_mtu */
 }
 
-fn ifreq_for(name: &str) -> ifreq {
-    let mut ifreq = ifreq {
+fn ifreq_for(name: &str) -> Ifreq {
+    let mut ifreq = Ifreq {
         ifr_name: [0; libc::IF_NAMESIZE],
         ifr_data: 0,
     };
@@ -25,11 +25,11 @@ fn ifreq_for(name: &str) -> ifreq {
 
 fn ifreq_ioctl(
     lower: libc::c_int,
-    ifreq: &mut ifreq,
+    ifreq: &mut Ifreq,
     cmd: libc::c_ulong,
 ) -> io::Result<libc::c_int> {
     unsafe {
-        let res = libc::ioctl(lower, cmd as _, ifreq as *mut ifreq);
+        let res = libc::ioctl(lower, cmd as _, ifreq as *mut Ifreq);
         if res == -1 {
             return Err(io::Error::last_os_error());
         }
@@ -47,7 +47,7 @@ pub const ETH_P_IEEE802154: libc::c_short = 0x00F6;
 pub struct RawSocket {
     protocol: libc::c_short,
     lower: libc::c_int,
-    ifreq: ifreq,
+    ifreq: Ifreq,
 }
 
 impl AsRawFd for RawSocket {

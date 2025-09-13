@@ -6,7 +6,11 @@ use serde::Deserialize;
 use sqlx::{Postgres, QueryBuilder, Row};
 use tracing::debug;
 
-use crate::{config::RescanConfig, database::Database, scanner::targets::ScanRange};
+use crate::{
+    config::RescanConfig,
+    database::{Database, PgU16, PgU32},
+    scanner::targets::ScanRange,
+};
 
 #[derive(Deserialize, Clone, Copy, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -64,8 +68,8 @@ pub async fn get_ranges(database: &Database, opts: &RescanConfig) -> eyre::Resul
     let mut servers: usize = 0;
 
     while let Some(Ok(row)) = rows.next().await {
-        let ip = Ipv4Addr::from_bits(row.get::<i32, _>(0) as u32);
-        let port: u16 = row.get::<i16, _>(1) as u16;
+        let ip = Ipv4Addr::from_bits(row.get::<PgU32, _>(0).0);
+        let port = row.get::<PgU16, _>(1).0;
 
         // there shouldn't be any aliased servers since we should've deleted them, but
         // this desync can happen if we're running multiple instances of matscan
@@ -76,8 +80,8 @@ pub async fn get_ranges(database: &Database, opts: &RescanConfig) -> eyre::Resul
                 "We encountered an aliased server while getting servers to rescan. Deleting {ip} from database."
             );
             sqlx::query("DELETE FROM servers WHERE ip = $1 AND port != $2")
-                .bind(ip.to_bits() as i32)
-                .bind(allowed_port as i16)
+                .bind(PgU32(ip.to_bits()))
+                .bind(PgU16(allowed_port))
                 .execute(&database.pool)
                 .await?;
             // this doesn't actually remove it from the database, it just makes it so we

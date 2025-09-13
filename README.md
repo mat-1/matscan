@@ -29,13 +29,20 @@ It is assumed that you know the basics of server scanning. Otherwise, I recommen
 
 Rename `example-config.toml` to `config.toml` and fill in the fields.
 
-Assuming you already have Postgres installed, you can make the database with the following queries:
+Installing Postgres with the [pg-uint128](https://github.com/pg-uint/pg-uint128) extension is required.
+
+Then, can make the database with the following queries:
 ```sql
 CREATE DATABASE matscan;
 CREATE USER matscan WITH PASSWORD 'replace me!!!';
 GRANT ALL PRIVILEGES ON DATABASE matscan TO matscan;
 GRANT CREATE ON SCHEMA public TO matscan;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO matscan;
+
+-- the user will need superuser permissions on the first run to enable postgres extensions
+ALTER ROLE matscan superuser;
+-- after the first run, you should do ALTER ROLE matscan nosuperuser;
+
 -- PostgreSQL URI is postgres://matscan:replace-me@localhost/matscan
 ```
 

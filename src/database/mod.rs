@@ -1,13 +1,26 @@
 pub mod collect_servers;
 pub mod migrate_mongo_to_postgres;
 
-use std::{collections::HashSet, net::Ipv4Addr, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    fmt::{self, Display},
+    net::Ipv4Addr,
+    ops::Deref,
+    str::FromStr,
+    sync::Arc,
+    time::Duration,
+};
 
 use futures_util::stream::StreamExt;
 use lru_cache::LruCache;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
-use sqlx::{PgPool, Row};
+use sqlx::{
+    PgPool, Postgres, Row,
+    encode::IsNull,
+    error::BoxDynError,
+    postgres::{PgArgumentBuffer, PgTypeInfo, PgValueFormat, PgValueRef},
+};
 use tracing::{error, info};
 
 use crate::database::collect_servers::CollectServersCache;
@@ -80,8 +93,8 @@ impl Database {
             .fetch_all(&self.pool)
             .await?;
         for row in rows {
-            let ip = Ipv4Addr::from_bits(row.get::<i32, _>(0) as u32);
-            let allowed_port = row.get::<i16, _>(1) as u16;
+            let ip = Ipv4Addr::from_bits(row.get::<PgU32, _>(0).0);
+            let allowed_port = row.get::<PgU16, _>(1).0;
             aliased_ips_to_allowed_port.insert(ip, allowed_port);
         }
         self.shared.lock().aliased_ips_to_allowed_port = aliased_ips_to_allowed_port;
@@ -102,14 +115,14 @@ impl Database {
         let mut txn = self.pool.begin().await?;
 
         sqlx::query("INSERT INTO ips_with_aliased_servers (ip, allowed_port) VALUES ($1, $2)")
-            .bind(ip.to_bits() as i32)
-            .bind(allowed_port as i16)
+            .bind(PgU32(ip.to_bits()))
+            .bind(PgU16(allowed_port))
             .execute(&mut *txn)
             .await?;
         // delete all servers with this ip that aren't on the allowed port
         let delete_res = sqlx::query("DELETE FROM servers WHERE ip = $1 AND port != $2")
-            .bind(ip.to_bits() as i32)
-            .bind(allowed_port as i16)
+            .bind(PgU32(ip.to_bits()))
+            .bind(PgU16(allowed_port))
             .execute(&mut *txn)
             .await?;
         let deleted_count = delete_res.rows_affected();
@@ -146,7 +159,7 @@ impl Database {
         .fetch(&self.pool);
 
         while let Some(Ok(row)) = rows.next().await {
-            let ip = row.get::<i32, _>(0);
+            let ip = row.get::<PgU32, _>(0).0;
             let player_count = row.get::<i64, _>(1);
 
             let delete_count = player_count - KEEP_PLAYER_COUNT;
@@ -160,7 +173,7 @@ impl Database {
                 )
                 ",
             )
-            .bind(ip)
+            .bind(PgU32(ip))
             .bind(delete_count)
             .execute(&self.pool)
             .await?;
@@ -173,4 +186,80 @@ impl Database {
 /// Removes null bytes so we don't get errors in Postgres :(
 pub fn sanitize_text_for_postgres(s: &str) -> String {
     s.replace('\0', "")
+}
+
+pub struct PgU32(pub u32);
+impl Deref for PgU32 {
+    type Target = u32;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl Display for PgU32 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl FromStr for PgU32 {
+    type Err = std::num::ParseIntError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
+    }
+}
+impl sqlx::Type<Postgres> for PgU32 {
+    fn type_info() -> PgTypeInfo {
+        PgTypeInfo::with_name("uint4")
+    }
+}
+impl sqlx::Decode<'_, Postgres> for PgU32 {
+    fn decode(value: PgValueRef<'_>) -> Result<Self, BoxDynError> {
+        Ok(match value.format() {
+            PgValueFormat::Binary => Self(u32::from_be_bytes(value.as_bytes()?.try_into()?)),
+            PgValueFormat::Text => value.as_str()?.parse()?,
+        })
+    }
+}
+impl sqlx::Encode<'_, Postgres> for PgU32 {
+    fn encode_by_ref(&self, buf: &mut PgArgumentBuffer) -> Result<IsNull, BoxDynError> {
+        buf.extend(&self.to_be_bytes());
+        Ok(IsNull::No)
+    }
+}
+
+pub struct PgU16(pub u16);
+impl Deref for PgU16 {
+    type Target = u16;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl Display for PgU16 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl FromStr for PgU16 {
+    type Err = std::num::ParseIntError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(s.parse()?))
+    }
+}
+impl sqlx::Type<Postgres> for PgU16 {
+    fn type_info() -> PgTypeInfo {
+        PgTypeInfo::with_name("uint2")
+    }
+}
+impl sqlx::Decode<'_, Postgres> for PgU16 {
+    fn decode(value: PgValueRef<'_>) -> Result<Self, BoxDynError> {
+        Ok(match value.format() {
+            PgValueFormat::Binary => Self(u16::from_be_bytes(value.as_bytes()?.try_into()?)),
+            PgValueFormat::Text => value.as_str()?.parse()?,
+        })
+    }
+}
+impl sqlx::Encode<'_, Postgres> for PgU16 {
+    fn encode_by_ref(&self, buf: &mut PgArgumentBuffer) -> Result<IsNull, BoxDynError> {
+        buf.extend(&self.to_be_bytes());
+        Ok(IsNull::No)
+    }
 }

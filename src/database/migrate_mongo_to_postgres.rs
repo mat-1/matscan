@@ -8,6 +8,8 @@ use futures_util::TryStreamExt;
 use sqlx::QueryBuilder;
 use uuid::Uuid;
 
+use crate::database::{PgU16, PgU32};
+
 pub async fn do_migration(mongodb_uri: &str, postgres_uri: &str) {
     let client_options = mongodb::options::ClientOptions::parse(mongodb_uri)
         .await
@@ -294,8 +296,8 @@ impl Database {
                 last_time_no_players_online = $27
             "#,
         )
-        .bind(addr.ip().to_bits() as i32)
-        .bind(addr.port() as i16)
+        .bind(PgU32(addr.ip().to_bits()) )
+        .bind(PgU16(addr.port()))
         .bind(s.last_pinged)
         .bind(s.is_online_mode)
         .bind(s.favicon_hash)
@@ -330,8 +332,8 @@ impl Database {
                 "INSERT INTO server_players (server_ip, server_port, uuid, username, online_mode, last_seen, first_seen) ",
             );
             query_builder.push_values(s.player_sample, |mut b, player| {
-                b.push_bind(addr.ip().to_bits() as i32)
-                    .push_bind(addr.port() as i16)
+                b.push_bind(PgU32(addr.ip().to_bits()))
+                    .push_bind(PgU16(addr.port()))
                     .push_bind(player.uuid)
                     .push_bind(player.name.map(|n| n.replace('\0', "")))
                     .push_bind(player.uuid.map(|u| match u.get_version_num() {
