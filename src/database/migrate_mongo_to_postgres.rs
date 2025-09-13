@@ -35,7 +35,7 @@ pub async fn do_migration(mongodb_uri: &str, postgres_uri: &str) {
         .find(mongodb::bson::doc! {})
         .sort(mongodb::bson::doc! {"addr": 1})
         .await
-        .expect("bad servers collection must exist");
+        .expect("servers collection must exist");
     while let Some(doc) = cursor.try_next().await.unwrap() {
         let ip = doc
             .get_i64("addr")

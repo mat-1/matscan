@@ -3,7 +3,7 @@ use std::{
     net::{Ipv4Addr, SocketAddrV4},
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ScanRange {
     pub ip_start: Ipv4Addr,
     pub ip_end: Ipv4Addr,
@@ -68,15 +68,17 @@ pub struct ScanRanges {
 }
 
 impl ScanRanges {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(ranges: Vec<ScanRange>) -> Self {
+        let mut s = Self::default();
+        s.extend(ranges);
+        s
     }
 
     /// Add to the set of ranges. There is no push function because it'd be too
     /// inefficient, you can call this with a single-item vec if you really need
     /// to.
-    pub fn extend(&mut self, ranges: Vec<ScanRange>) {
-        self.ranges.extend(ranges);
+    pub fn extend(&mut self, r: Vec<ScanRange>) {
+        self.ranges.extend(r);
         self.ranges.sort_by_key(|r| r.ip_start);
     }
 
@@ -221,6 +223,11 @@ impl ScanRanges {
         }
     }
 }
+impl From<Vec<ScanRange>> for ScanRanges {
+    fn from(ranges: Vec<ScanRange>) -> Self {
+        Self::new(ranges)
+    }
+}
 
 pub struct StaticScanRanges {
     pub ranges: Vec<StaticScanRange>,
@@ -318,8 +325,7 @@ mod test {
 
     #[test]
     fn test_count_addresses_slash0() {
-        let mut ranges = ScanRanges::new();
-        ranges.extend(vec![ScanRange::single_port(
+        let ranges = ScanRanges::new(vec![ScanRange::single_port(
             Ipv4Addr::new(0, 0, 0, 0),
             Ipv4Addr::new(255, 255, 255, 255),
             0,
@@ -329,9 +335,7 @@ mod test {
 
     #[test]
     fn test_subtract_center() {
-        let mut ranges = ScanRanges::new();
-
-        ranges.extend(vec![ScanRange::single_port(
+        let mut ranges = ScanRanges::new(vec![ScanRange::single_port(
             Ipv4Addr::new(1, 32, 32, 32),
             Ipv4Addr::new(1, 128, 128, 128),
             0,
@@ -370,9 +374,7 @@ mod test {
 
     #[test]
     fn test_subtract_center_from_slash_0() {
-        let mut ranges = ScanRanges::new();
-
-        ranges.extend(vec![ScanRange::single_port(
+        let mut ranges = ScanRanges::new(vec![ScanRange::single_port(
             Ipv4Addr::new(0, 0, 0, 0),
             Ipv4Addr::new(255, 255, 255, 255),
             0,
@@ -408,9 +410,7 @@ mod test {
 
     #[test]
     fn test_subtract_left() {
-        let mut ranges = ScanRanges::new();
-
-        ranges.extend(vec![ScanRange::single_port(
+        let mut ranges = ScanRanges::new(vec![ScanRange::single_port(
             Ipv4Addr::new(1, 32, 32, 32),
             Ipv4Addr::new(1, 128, 128, 128),
             0,
@@ -442,8 +442,7 @@ mod test {
 
     #[test]
     fn test_subtract_right() {
-        let mut ranges = ScanRanges::new();
-        ranges.extend(vec![ScanRange::single_port(
+        let mut ranges = ScanRanges::new(vec![ScanRange::single_port(
             Ipv4Addr::new(1, 32, 32, 32),
             Ipv4Addr::new(1, 128, 128, 128),
             0,

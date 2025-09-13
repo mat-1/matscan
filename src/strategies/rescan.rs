@@ -1,6 +1,7 @@
 use std::net::Ipv4Addr;
 
 use futures_util::StreamExt;
+use rustc_hash::FxHashSet;
 use serde::Deserialize;
 use sqlx::{Postgres, QueryBuilder, Row};
 use tracing::debug;
@@ -15,7 +16,7 @@ pub enum Sort {
 }
 
 pub async fn get_ranges(database: &Database, opts: &RescanConfig) -> eyre::Result<Vec<ScanRange>> {
-    let mut ranges = Vec::new();
+    let mut ranges = FxHashSet::default();
 
     let mut qb: QueryBuilder<'_, Postgres> = QueryBuilder::new(format!(
         "
@@ -60,6 +61,8 @@ pub async fn get_ranges(database: &Database, opts: &RescanConfig) -> eyre::Resul
     debug!("Doing rescan query with SQL: {sql}");
     let mut rows = sqlx::query(&sql).fetch(&database.pool);
 
+    let mut servers: usize = 0;
+
     while let Some(Ok(row)) = rows.next().await {
         let ip = Ipv4Addr::from_bits(row.get::<i32, _>(0) as u32);
         let port: u16 = row.get::<i16, _>(1) as u16;
@@ -83,19 +86,26 @@ pub async fn get_ranges(database: &Database, opts: &RescanConfig) -> eyre::Resul
             continue;
         }
 
-        ranges.push(ScanRange::single(ip, port));
-        if ranges.len() % 1000 == 0 {
-            println!("{} ips", ranges.len());
+        if opts.padded && port == 25565 {
+            // if padding is enabled, scan some extra addresses that aren't specifically
+            // known to have minecraft servers so we're not flooded with responses
+            let [a, b, c, _] = ip.octets();
+            ranges.insert(ScanRange {
+                ip_start: Ipv4Addr::from([a, b, c, 0]),
+                ip_end: Ipv4Addr::from([a, b, c, 255]),
+                port_start: port,
+                port_end: port,
+            });
+        } else {
+            ranges.insert(ScanRange::single(ip, port));
         }
+
+        if servers.is_multiple_of(1000) {
+            println!("{servers} servers");
+        }
+
+        servers += 1;
     }
 
-    if opts.padded {
-        ranges.push(ScanRange::single_port(
-            Ipv4Addr::new(0, 0, 0, 0),
-            Ipv4Addr::new(255, 255, 255, 255),
-            25565,
-        ));
-    }
-
-    Ok(ranges)
+    Ok(ranges.into_iter().collect())
 }

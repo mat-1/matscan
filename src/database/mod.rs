@@ -8,7 +8,7 @@ use lru_cache::LruCache;
 use parking_lot::Mutex;
 use rustc_hash::FxHashMap;
 use sqlx::{PgPool, Row};
-use tracing::error;
+use tracing::{error, info};
 
 use crate::database::collect_servers::CollectServersCache;
 
@@ -116,7 +116,7 @@ impl Database {
 
         txn.commit().await?;
 
-        eprintln!("Deleted {deleted_count} bad servers");
+        info!("Deleted {deleted_count} aliased servers");
 
         Ok(())
     }

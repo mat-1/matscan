@@ -7,7 +7,7 @@ matscan is heavily inspired by [masscan](https://github.com/robertdavidgraham/ma
 ## Features
 
 - Adaptive scanning (scans more than just the default port)
-- Works well even on relatively low scan rates and with lots of packet drops (running in production at ~50kpps and ~20% loss)
+- Works well even on relatively low scan rates and with lots of packet drops (running in production at ~50kpps)
 - Can be run in a distributed fashion
 - Customizable rescanning (rescan servers with players online more often, etc)
 - Customizable target host, target port, protocol version

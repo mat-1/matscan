@@ -183,7 +183,7 @@ async fn main() -> eyre::Result<()> {
     loop {
         let start_time = Instant::now();
 
-        let mut ranges = ScanRanges::new();
+        let mut ranges = ScanRanges::default();
 
         let strategy_category = strategy_categories[i % strategy_categories.len()];
         i += 1;
@@ -381,6 +381,7 @@ fn process_results(
     let revived = shared_process_data.revived;
     let results = shared_process_data.results;
     shared_process_data.total_new = 0;
+    shared_process_data.total_new_on_default_port = 0;
     shared_process_data.revived = 0;
     shared_process_data.results = 0;
 
@@ -437,12 +438,7 @@ async fn maybe_rescan_with_config(
     rescan: &RescanConfig,
 ) -> eyre::Result<()> {
     if rescan.enabled {
-        ranges.extend(
-            matscan::strategies::rescan::get_ranges(database, rescan)
-                .await?
-                .into_iter()
-                .collect::<Vec<_>>(),
-        );
+        ranges.extend(matscan::strategies::rescan::get_ranges(database, rescan).await?);
     }
     Ok(())
 }
