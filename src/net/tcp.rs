@@ -411,7 +411,7 @@ fn process_ipv4(ipv4: &Ipv4Packet) -> Option<Tcp> {
             }
         }
         IpNextHeaderProtocols::IpComp => {
-            warn!("Recieved an IpComp packet, but it's not supported.");
+            warn!("Received an IpComp packet, but it's not supported.");
             None
         }
         _ => None,
